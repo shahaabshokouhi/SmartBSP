@@ -93,7 +93,7 @@ class SmartPSB():
         cost = curve + distance
         collision = 0
         if self.obstacle_check(grid):
-            collision = 20
+            collision = 100
 
         cost = curve + distance + collision
 
@@ -102,6 +102,7 @@ class SmartPSB():
     def action2point(self, actions):
         # actions should be n-2 dimensional vector (np array)
         y_possible_points = np.linspace(-((self.num_y - 1)/2) * self.d, ((self.num_y - 1)/2) * self.d, self.num_y)
+        y_possible_points = y_possible_points[::-1]
         y_points = []
         for i in range(actions.shape[0]):
             y_points.append(y_possible_points[actions[i]])
@@ -116,8 +117,8 @@ class SmartPSB():
         collision = False
         # Print the indices of the zero elements
         for i, j in zip(zero_indices[0], zero_indices[1]):
-            obs_pos.append([j, i - 2])
-            # print(f"Obstacle detected at x = {j} and y = {i - 2}")
+            obs_pos.append([j, 2 - i])
+            # print(f"Obstacle detected at x = {j} and y = {2 - i}")
         for pos in self.val:
             x = pos[0]
             y = pos[1]
