@@ -19,13 +19,13 @@ path_planner = SmartPSB()
 target = np.array([10, -10])
 possible_actions = np.arange(0, 5)
 num_samples = 10000
-griddataset = GridDataset(n, num_samples)
+griddataset = GridDataset(n, num_samples, test=True)
 gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
 actor = ConvNet(grid_size=n)
 actor.load_state_dict(torch.load('ppo_actor.pth'))
 batch_rew_history = []
 obs_cols = []
-render = False
+render = True
 
 for idx, batch_grids in enumerate(gridloader):
     batch_grids = batch_grids.view(-1, 1, 5, 5)

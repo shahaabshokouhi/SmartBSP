@@ -16,7 +16,7 @@ class SmartPSB():
             return None
 
         T = np.linspace(0, 3, n - order + 2)
-        y = np.linspace(0, 3, 31)
+        y = np.linspace(0, 3, 100)
         p_spl = self.deboor(T, p, y, order)
         return p_spl
 
@@ -90,12 +90,13 @@ class SmartPSB():
 
         final_point = p_spl[:, -1]  # Get the last column
         distance = np.sqrt((target[0] - final_point[0])**2 + (target[1] - final_point[1])**2)
-        cost = curve + distance
+        # distance = 0
+        # curve = 0
         collision = 0
         if self.obstacle_check(grid):
-            collision = 100
+            collision = 1000
 
-        cost = curve + distance + collision
+        cost = curve + 10 * distance + collision
 
         return cost
 
@@ -123,11 +124,19 @@ class SmartPSB():
             x = pos[0]
             y = pos[1]
             for obs in obs_pos:
-                if x < (obs[0] + 0.5) and x > (obs[0] - 0.5) and y < (obs[1] + 0.5) and y > (obs[1] - 0.5):
+                if x < (obs[0] + 0.6) and x > (obs[0] - 0.6) and y < (obs[1] + 0.6) and y > (obs[1] - 0.6):
                     collision = True
         return collision
 
-
+    def obstacle_from_grid(self, grid):
+        # Get the indices of the zero elements using NumPy's np.where function
+        zero_indices = np.where(grid == 0)
+        obs_pos = []
+        collision = False
+        # Print the indices of the zero elements
+        for i, j in zip(zero_indices[0], zero_indices[1]):
+            obs_pos.append([j, 2 - i])
+        return np.array(obs_pos)
 
 
 

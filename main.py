@@ -11,29 +11,41 @@ import torch.nn as nn
 from torch.optim import Adam
 import time
 warnings.filterwarnings('ignore')
+torch.manual_seed(2)
 
 
 n = 5  # N by N view of the robot, must be odd
 x = np.arange(0, n + 1)
 path_planner = SmartPSB()
-target = np.array([10, 0])
+target = np.array([10, 10])
 possible_actions = np.arange(0, 5)
-num_samples = 1000000
+num_samples = 100000
+batch_size = 10
 griddataset = GridDataset(n, num_samples)
-gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
+gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
 actor = ConvNet(grid_size=n)
 critic = ConvVal(grid_size=n)
+
+#####
+critic.load_state_dict(torch.load('ppo_critic.pth'))
+actor.load_state_dict(torch.load('ppo_actor.pth'))
+
+####
+
 learning_rate = 0.001
 # Initialize optimizers for actor and critic
 actor_optim = Adam(actor.parameters(), lr=learning_rate)
 critic_optim = Adam(critic.parameters(), lr=learning_rate)
-num_epochs = 10
+num_epochs = 1
 n_updates_per_iteration = 5
 ppo_clip = 0.2
+save_frequency = 100
 render = True
 actor_losses = []
 critic_losses = []
 batch_rew_history = []
+epsilon = 0.1  # Exploration rate
+
 for epoch in range(num_epochs):
     for batch_idx, batch_grids in enumerate(gridloader):
         batch_actions = []
@@ -48,12 +60,14 @@ for epoch in range(num_epochs):
             dist_map_numpy = dist_map.detach().numpy()
             actions = []
             log_probs = []
+
             for i in range(n-1):
                 action = random.choices(possible_actions, dist_map_numpy[0, :, i+1])[0]
                 action_prob = dist_map_numpy[0, :, i+1][action]
                 log_prob = np.log(action_prob)
                 actions.append(action)
                 log_probs.append(log_prob)
+
             log_probs = np.sum(log_probs)
             actions = np.array(actions)
             y = path_planner.action2point(actions)
@@ -66,11 +80,12 @@ for epoch in range(num_epochs):
         batch_rew = torch.tensor(batch_rew, dtype=torch.float32)
         batch_actions = torch.tensor(batch_actions, dtype=torch.int)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float32)
-        batch_grids = batch_grids.view(8, 1, 5, 5)
+        batch_grids = batch_grids.view(batch_size, 1, 5, 5)
         batch_rew_mean = batch_rew.mean().item()
         batch_rew_history.append(batch_rew_mean)
         V = critic(batch_grids).squeeze()
         A_k = batch_rew - V.detach()
+        # A_k = batch_rew - 1000
         A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
         for _ in range(n_updates_per_iteration):
             V = critic(batch_grids).squeeze()
@@ -88,6 +103,9 @@ for epoch in range(num_epochs):
             surr1 = ratios * A_k
             surr2 = torch.clamp(ratios, 1 - ppo_clip, 1 + ppo_clip) * A_k
             actor_loss = (torch.min(surr1, surr2)).mean()
+            if torch.isnan(actor_loss).any():
+                print('Error: Actor loss is NaN')
+
             critic_loss = nn.MSELoss()(V, batch_rew)
             actor_losses.append(actor_loss.item())
             critic_losses.append(critic_loss.item())
@@ -103,9 +121,19 @@ for epoch in range(num_epochs):
             critic_loss.backward()
             critic_optim.step()
             print('-'*10)
-        if batch_idx % 1000 == 0 and render:
+        if batch_idx % save_frequency == 0:
+            # save the actor and critic network
+            torch.save(actor.state_dict(), './ppo_actor.pth')
+            torch.save(critic.state_dict(), './ppo_critic.pth')
+
+        if batch_idx == 0 and render:
+
+
             plt.plot(actor_losses)  # Example plot, replace with your actual plotting code
             plt.title("Actor loss")
+            plt.show()
+            plt.plot(critic_losses)  # Example plot, replace with your actual plotting code
+            plt.title("Critic loss")
             plt.show()
             plt.plot(batch_rew_history)
             plt.title("Batch Rewards")
@@ -118,11 +146,14 @@ for epoch in range(num_epochs):
             for idx, ax in enumerate(axes):
                 grid_example_tensor = batch_grids[idx]
                 grid_example_numpy = grid_example_tensor.detach().numpy().reshape(5, 5)
+                obstacles = path_planner.obstacle_from_grid(grid_example_numpy)
                 dist_map = actor(grid_example_tensor)
                 dist_map_numpy = dist_map.detach().numpy()
 
                 # Plot grid
-                ax.imshow(grid_example_numpy, cmap='gray', extent=[0, n, 0, n])
+                ax.scatter(obstacles[:,0], obstacles[:,1] + 2, c='yellow', alpha=1)
+                ax.imshow(np.concatenate((np.zeros((5, 1)), dist_map_numpy.reshape(5, 5)), axis=1), cmap='gray', extent=[-0.5, 5.5, -0.5, 4.5])
+
                 ax.set_title(f"Grid {idx + 1}")
 
                 actions = []
@@ -144,10 +175,11 @@ for epoch in range(num_epochs):
                 print('Collision: ', collision)
                 print('-'*10)
                 # Plotting the path
-                ax.plot(path[:, 0] + 0.5, path[:, 1] + n/2, 'r-', label='Spline Path')  # Adjust path plotting as needed
-                ax.plot(p[:, 0] + 0.5, p[:, 1] + n/2, 'o-', label='Control Points')  # Plot control points
+                ax.plot(path[:, 0], path[:, 1] + 2, 'r-', label='Spline Path')  # Adjust path plotting as needed
+                ax.plot(p[:, 0], p[:, 1] + 2, 'o-', label='Control Points')  # Plot control points
                 ax.axis('equal')  # Ensure equal aspect ratio
                 ax.legend()
 
             plt.tight_layout()
             plt.show()
+print('Done!')
