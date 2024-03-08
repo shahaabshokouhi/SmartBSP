@@ -6,6 +6,7 @@ class ConvNet(nn.Module):
 
     def __init__(self, grid_size):
         super(ConvNet, self).__init__()
+        self.grid_size = grid_size
         # out_channels: num of filters
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=20, kernel_size=3, stride=1, padding=1)
         # self.conv1_5 = nn.Conv2d(in_channels=20, out_channels=20, kernel_size=3, stride=1, padding=1)
@@ -24,7 +25,7 @@ class ConvNet(nn.Module):
         prob_image = []
         for col in range(n_cols):
             col_i = x[..., col]
-            col_i = self.softm(col_i).view(-1,5,1)
+            col_i = self.softm(col_i).view(-1,self.grid_size,1)
             prob_image.append(col_i)
         final_image = torch.cat(prob_image, dim=-1)
         return final_image

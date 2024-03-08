@@ -14,12 +14,12 @@ warnings.filterwarnings('ignore')
 torch.manual_seed(2)
 
 
-n = 5  # N by N view of the robot, must be odd
+n = 7  # N by N view of the robot, must be odd
 x = np.arange(0, n + 1)
-path_planner = SmartPSB()
+path_planner = SmartPSB(num_y=n)
 target = np.array([10, 10])
-possible_actions = np.arange(0, 5)
-num_samples = 100000
+possible_actions = np.arange(0, n)
+num_samples = 1000000
 batch_size = 10
 griddataset = GridDataset(n, num_samples)
 gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
@@ -36,11 +36,11 @@ learning_rate = 0.001
 # Initialize optimizers for actor and critic
 actor_optim = Adam(actor.parameters(), lr=learning_rate)
 critic_optim = Adam(critic.parameters(), lr=learning_rate)
-num_epochs = 1
+num_epochs = 3
 n_updates_per_iteration = 5
 ppo_clip = 0.2
 save_frequency = 100
-render = True
+render = False
 actor_losses = []
 critic_losses = []
 batch_rew_history = []
@@ -55,7 +55,7 @@ for epoch in range(num_epochs):
         for i in range(batch_grids.shape[0]):
             grid = batch_grids[i]
             grid_tensor = torch.tensor(grid, dtype=torch.float)
-            grid_tensor = grid_tensor.view(1, 1, 5, 5)
+            grid_tensor = grid_tensor.view(1, 1, n, n)
             dist_map = actor(grid_tensor)
             dist_map_numpy = dist_map.detach().numpy()
             actions = []
@@ -80,7 +80,7 @@ for epoch in range(num_epochs):
         batch_rew = torch.tensor(batch_rew, dtype=torch.float32)
         batch_actions = torch.tensor(batch_actions, dtype=torch.int)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float32)
-        batch_grids = batch_grids.view(batch_size, 1, 5, 5)
+        batch_grids = batch_grids.view(batch_size, 1, n, n)
         batch_rew_mean = batch_rew.mean().item()
         batch_rew_history.append(batch_rew_mean)
         V = critic(batch_grids).squeeze()
@@ -126,7 +126,7 @@ for epoch in range(num_epochs):
             torch.save(actor.state_dict(), './ppo_actor.pth')
             torch.save(critic.state_dict(), './ppo_critic.pth')
 
-        if batch_idx == 0 and render:
+        if batch_idx % 200 == 0 and render:
 
 
             plt.plot(actor_losses)  # Example plot, replace with your actual plotting code
@@ -140,19 +140,19 @@ for epoch in range(num_epochs):
             plt.show()
 
 
-            fig, axes = plt.subplots(2, 4, figsize=(20, 5))  # Adjust the size as needed
+            fig, axes = plt.subplots(2, 5, figsize=(20, 4))  # Adjust the size as needed
             axes = axes.flatten()  # Flatten the axes array for easy iteration
             success = []
             for idx, ax in enumerate(axes):
                 grid_example_tensor = batch_grids[idx]
-                grid_example_numpy = grid_example_tensor.detach().numpy().reshape(5, 5)
+                grid_example_numpy = grid_example_tensor.detach().numpy().reshape(n, n)
                 obstacles = path_planner.obstacle_from_grid(grid_example_numpy)
                 dist_map = actor(grid_example_tensor)
                 dist_map_numpy = dist_map.detach().numpy()
 
                 # Plot grid
-                ax.scatter(obstacles[:,0], obstacles[:,1] + 2, c='yellow', alpha=1)
-                ax.imshow(np.concatenate((np.zeros((5, 1)), dist_map_numpy.reshape(5, 5)), axis=1), cmap='gray', extent=[-0.5, 5.5, -0.5, 4.5])
+                ax.scatter(obstacles[:,0], obstacles[:,1], c='yellow', alpha=1)
+                ax.imshow(np.concatenate((np.zeros((n, 1)), dist_map_numpy.reshape(n, n)), axis=1), cmap='gray', extent=[-0.5, n + 0.5, -n/2, n/2])
 
                 ax.set_title(f"Grid {idx + 1}")
 
@@ -175,10 +175,10 @@ for epoch in range(num_epochs):
                 print('Collision: ', collision)
                 print('-'*10)
                 # Plotting the path
-                ax.plot(path[:, 0], path[:, 1] + 2, 'r-', label='Spline Path')  # Adjust path plotting as needed
-                ax.plot(p[:, 0], p[:, 1] + 2, 'o-', label='Control Points')  # Plot control points
+                ax.plot(path[:, 0], path[:, 1], 'r-', label='Spline Path')  # Adjust path plotting as needed
+                ax.plot(p[:, 0], p[:, 1], 'o-', label='Control Points')  # Plot control points
                 ax.axis('equal')  # Ensure equal aspect ratio
-                ax.legend()
+                # ax.legend()
 
             plt.tight_layout()
             plt.show()

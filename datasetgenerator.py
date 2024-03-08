@@ -17,12 +17,13 @@ class GridDataset(Dataset):
     def _generate_grid(self):
         grid = np.ones((self.n, self.n), dtype=np.float32)  # Initialize a 5x5 grid with ones for RGB white cells
         if self.test:
-            random_row = np.random.randint(0, self.n)
-            grid[random_row, 4] = 0.0
-            random_row = np.random.randint(0, self.n)
-            grid[random_row, 3] = 0.0
-            random_row = np.random.randint(0, 2)
-            grid[random_row, 2] = 0.0
+            grid[:, 4] = 0.0
+            # random_row = np.random.randint(0, self.n)
+            grid[3:, 4] = 1.0
+            # random_row = np.random.randint(0, self.n)
+            # grid[random_row, 4] = 0.0
+            # random_row = np.random.randint(0, 2)
+            # grid[random_row, 2] = 0.0
 
         else:
             for col in range(self.n-2):
