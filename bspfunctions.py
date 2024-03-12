@@ -89,14 +89,17 @@ class SmartPSB():
             curve += newCurve
 
         final_point = p_spl[:, -1]  # Get the last column
-        distance = np.sqrt((target[0] - final_point[0])**2 + (target[1] - final_point[1])**2)
+
+        # normalized distance
+        normalized_target = self.norm_target(target)
+        distance = np.sqrt((normalized_target[0] - final_point[0])**2 + (normalized_target[1] - final_point[1])**2)
         # distance = 0
         # curve = 0
         collision = 0
         if self.obstacle_check(grid):
             collision = 1000
 
-        cost = curve + 10 * distance + collision
+        cost = curve + 100 * distance + collision
 
         return cost
 
@@ -124,7 +127,7 @@ class SmartPSB():
             x = pos[0]
             y = pos[1]
             for obs in obs_pos:
-                if x < (obs[0] + 0.6) and x > (obs[0] - 0.6) and y < (obs[1] + 0.6) and y > (obs[1] - 0.6):
+                if x < (obs[0] + 0.55) and x > (obs[0] - 0.55) and y < (obs[1] + 0.55) and y > (obs[1] - 0.55):
                     collision = True
         return collision
 
@@ -138,5 +141,23 @@ class SmartPSB():
             obs_pos.append([j, np.floor(self.num_y/2) - i])
         return np.array(obs_pos)
 
+    def distance(self, point1, point2):
+        """Calculate the Euclidean distance between two points."""
+        return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
+    def norm_target(self, target):
+        """Find the point closest to the target location."""
+        min_distance = float('inf')
+        y = np.arange(-np.floor(self.num_y/2), np.floor(self.num_y/2) + 1)
+        x = self.num_y * np.ones_like(y)
+        points = np.column_stack((x, y))
+        closest_point = None
+
+        for point in points:
+            dist = self.distance(point, target)
+            if dist < min_distance:
+                min_distance = dist
+                normalized_target = point
+
+        return normalized_target
 

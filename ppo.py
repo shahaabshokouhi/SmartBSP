@@ -124,8 +124,8 @@ class PPO:
 
             # Save our model if it's time
             if i_so_far % self.save_freq == 0:
-                torch.save(self.actor.state_dict(), './ppo_actor.pth')
-                torch.save(self.critic.state_dict(), './ppo_critic.pth')
+                torch.save(self.actor.state_dict(), 'ppo_actor_n7_ep3_1000000.pth')
+                torch.save(self.critic.state_dict(), 'ppo_critic_n7_ep3_1000000.pth')
 
 
     def rollout(self):

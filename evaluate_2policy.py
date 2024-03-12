@@ -24,7 +24,7 @@ gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
 actor1 = ConvNet(grid_size=n)
 actor1.load_state_dict(torch.load('ppo_actor_wt.pth'))
 actor2 = ConvNet(grid_size=n)
-actor2.load_state_dict(torch.load('ppo_actor.pth'))
+actor2.load_state_dict(torch.load('ppo_actor_n7_ep3_1000000.pth'))
 batch_rew_history = []
 obs_cols = []
 render = True

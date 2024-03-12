@@ -13,7 +13,7 @@ import time
 warnings.filterwarnings('ignore')
 
 
-n = 7  # N by N view of the robot, must be odd
+n = 5  # N by N view of the robot, must be odd
 x = np.arange(0, n + 1)
 path_planner = SmartPSB(num_y=n)
 target = np.array([10, -10])
@@ -22,7 +22,7 @@ num_samples = 10000
 griddataset = GridDataset(n, num_samples, test=False)
 gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
 actor = ConvNet(grid_size=n)
-actor.load_state_dict(torch.load('ppo_actor.pth'))
+actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
 batch_rew_history = []
 obs_cols = []
 render = False
@@ -42,11 +42,11 @@ for idx, batch_grids in enumerate(gridloader):
         path = path_planner.construct_sp(p)
         obs_col = path_planner.obstacle_check(batch_grids[j, 0])
         obs_cols.append(obs_col)
-        if render:
+        if obs_col and render:
             grid_example_numpy = batch_grids[j].detach().numpy().reshape(n, n)
             obstacles = path_planner.obstacle_from_grid(grid_example_numpy)
             dist_map_numpy_grid = dist_map_numpy[j]
-
+            print(obs_col)
             # Plot grid
             plt.scatter(obstacles[:,0], obstacles[:,1], c='yellow', alpha=1)
             plt.imshow(np.concatenate((np.zeros((n, 1)), dist_map_numpy_grid), axis=1), cmap='gray', extent=[-0.5, n + 0.5, -n/2, n/2])

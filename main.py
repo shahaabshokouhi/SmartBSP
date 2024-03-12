@@ -13,22 +13,25 @@ import time
 warnings.filterwarnings('ignore')
 torch.manual_seed(2)
 
+# Check if GPU is available and set the device accordingly
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
-n = 7  # N by N view of the robot, must be odd
+n = 5  # N by N view of the robot, must be odd
 x = np.arange(0, n + 1)
 path_planner = SmartPSB(num_y=n)
-target = np.array([10, 10])
+target = np.array([10, -2])
 possible_actions = np.arange(0, n)
-num_samples = 1000000
+num_samples = 10000
 batch_size = 10
 griddataset = GridDataset(n, num_samples)
 gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
-actor = ConvNet(grid_size=n)
-critic = ConvVal(grid_size=n)
+actor = ConvNet(grid_size=n).to(device)
+critic = ConvVal(grid_size=n).to(device)
 
 #####
-critic.load_state_dict(torch.load('ppo_critic.pth'))
-actor.load_state_dict(torch.load('ppo_actor.pth'))
+# critic.load_state_dict(torch.load('ppo_critic_n5_ep3_10000_t2.pth'))
+# actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t2.pth'))
 
 ####
 
@@ -40,7 +43,8 @@ num_epochs = 3
 n_updates_per_iteration = 5
 ppo_clip = 0.2
 save_frequency = 100
-render = False
+render = True
+
 actor_losses = []
 critic_losses = []
 batch_rew_history = []
@@ -48,13 +52,15 @@ epsilon = 0.1  # Exploration rate
 
 for epoch in range(num_epochs):
     for batch_idx, batch_grids in enumerate(gridloader):
+        batch_grids = batch_grids.to(device)  # Move batch to GPU
+
         batch_actions = []
         batch_log_probs = []
         batch_rew = []
         ## rollout
         for i in range(batch_grids.shape[0]):
             grid = batch_grids[i]
-            grid_tensor = torch.tensor(grid, dtype=torch.float)
+            grid_tensor = torch.tensor(grid, dtype=torch.float).to(device)
             grid_tensor = grid_tensor.view(1, 1, n, n)
             dist_map = actor(grid_tensor)
             dist_map_numpy = dist_map.detach().numpy()
@@ -109,6 +115,7 @@ for epoch in range(num_epochs):
             critic_loss = nn.MSELoss()(V, batch_rew)
             actor_losses.append(actor_loss.item())
             critic_losses.append(critic_loss.item())
+            print(f'Epoch: {epoch}/{num_epochs}, batch: {batch_idx}/{num_samples/batch_size}')
             print(f'Actor loss: {actor_loss.item():.3f}')
             print(f'Critic loss: {critic_loss.item():.3f}')
             # Calculate gradients and perform backward propagation for actor network
@@ -121,12 +128,9 @@ for epoch in range(num_epochs):
             critic_loss.backward()
             critic_optim.step()
             print('-'*10)
-        if batch_idx % save_frequency == 0:
-            # save the actor and critic network
-            torch.save(actor.state_dict(), './ppo_actor.pth')
-            torch.save(critic.state_dict(), './ppo_critic.pth')
 
-        if batch_idx % 200 == 0 and render:
+
+        if batch_idx == 0 and render:
 
 
             plt.plot(actor_losses)  # Example plot, replace with your actual plotting code
@@ -182,4 +186,8 @@ for epoch in range(num_epochs):
 
             plt.tight_layout()
             plt.show()
+        if batch_idx % save_frequency == 0:
+            # save the actor and critic network
+            torch.save(actor.state_dict(), 'ppo_actor_n5_ep3_10000_t5.pth')
+            torch.save(critic.state_dict(), 'ppo_critic_n5_ep3_10000_t5.pth')
 print('Done!')
