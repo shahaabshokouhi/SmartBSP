@@ -7,11 +7,10 @@ wheel_base = 0.15  # meters, distance between two wheels
 
 # Generate a point cloud for obstacles
 np.random.seed(42)  # For reproducible results
-point_cloud = np.random.uniform(0, 1, (100, 2))  # 100 random points in a 1x1 square
+point_cloud = np.random.uniform(-10, 10, (100, 2))  # 100 random points in a 2D space
 
 # Initial robot state [x, y, theta]
-state = np.array([0.1, 0.2, np.pi / 4])
-
+state = np.array([0, 0, np.pi / 4])
 
 def update_state(state, left_wheel_velocity, right_wheel_velocity, dt):
     """
@@ -32,7 +31,6 @@ def update_state(state, left_wheel_velocity, right_wheel_velocity, dt):
     new_state = np.array([x + dx, y + dy, theta + dtheta])
     return new_state
 
-
 def simulate_movement(state, steps, left_wheel_velocity, right_wheel_velocity, dt=0.1):
     """
     Simulate the robot's movement for a given number of steps.
@@ -46,13 +44,33 @@ def simulate_movement(state, steps, left_wheel_velocity, right_wheel_velocity, d
         path.append(state)
     return np.array(path)
 
+def filter_front_points(state, point_cloud, length=5.5, width=5):
+    """
+    Filter points that are within the specified rectangle in front of the robot.
+    """
+    x, y, theta = state
+    rect_points = []
+    for point in point_cloud:
+        # Transform point to robot coordinates
+        px, py = point[0] - x, point[1] - y
+        px_rot, py_rot = np.cos(-theta) * px - np.sin(-theta) * py, np.sin(-theta) * px + np.cos(-theta) * py
+
+        # Check if the point is within the rectangle
+        if -width / 2 <= px_rot <= width / 2 and 0 <= py_rot <= length:
+            rect_points.append(point)
+
+    return np.array(rect_points)
 
 # Simulate robot movement
 path = simulate_movement(state, 200, 1.0, 0.5)
 
+# Filter points directly in front of the robot
+front_points = filter_front_points(state, point_cloud)
+
 # Plotting
 plt.figure(figsize=(8, 8))
 plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
+plt.scatter(front_points[:, 0], front_points[:, 1], c='yellow', label='Front Points')
 plt.plot(path[:, 0], path[:, 1], 'b.-', label='Robot Path')
 plt.legend()
 plt.axis('equal')
