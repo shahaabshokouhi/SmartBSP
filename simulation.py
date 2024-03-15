@@ -1,5 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
+from network import ConvNet
+from bspfunctions import SmartPSB
+
 
 
 class Robot:
@@ -18,6 +22,17 @@ class Robot:
         dtheta = omega * dt
         self.state = np.array([x + dx, y + dy, theta + dtheta])
         return self.state
+
+    def transform_path_to_global(self, path):
+        x, y, theta = self.state
+        # Create a rotation matrix
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                    [np.sin(theta), np.cos(theta)]])
+
+        # Transform each point
+        path_global = np.dot(path, rotation_matrix.T) + [x, y]
+
+        return path_global
 
 class ObstacleGrid:
     def __init__(self, point_cloud, grid_size=(5, 5), area_size=(5, 5)):
@@ -52,7 +67,7 @@ class ObstacleGrid:
             cell_x = int((px_rot - 0.5) // cell_width)
             cell_y = int((self.area_size[0] / 2 - py_rot) // cell_length)
             grid[cell_y, cell_x] = 0
-        return grid
+        return torch.tensor(grid, dtype=torch.float32)
 
     def get_rectangle_corners(self, robot_state):
         """
@@ -95,9 +110,16 @@ right_wheel_velocity = 1
 dt = 10
 length = 5
 width = 5
+x = np.arange(0, grid_size + 1)
+
+
+# loading the network
+actor = ConvNet(grid_size=grid_size)
+actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t1.pth'))
+path_planner = SmartPSB(num_y=grid_size)
 
 # Simulate the robot's movement for a given number of steps.
-path = [state]
+states = [state]
 robot = Robot(state)
 obstacle_to_grid = ObstacleGrid(point_cloud, grid_size=(grid_size, grid_size), area_size=(length, width))
 
@@ -105,8 +127,8 @@ for _ in range(steps):
 
     # Update the path
     state = robot.update_state(left_wheel_velocity, right_wheel_velocity, dt)
-    path.append(state)
-    path_np = np.array(path)
+    states.append(state)
+    states_np = np.array(states)
 
     # Filter points directly in front of the robot
     inertial_points, body_points = obstacle_to_grid.filter_front_points(state)
@@ -116,16 +138,31 @@ for _ in range(steps):
     # Get the final position of the robot to draw the rectangle
     rectangle_corners = obstacle_to_grid.get_rectangle_corners(state)
 
-    # creating the grid
+    # creating the grid, and the path
     grid = obstacle_to_grid.create_grid(state)
+    grid = grid.view(1, grid_size, grid_size)
     print("extracted grid: ", grid)
+    dist_map = actor(grid)
+    dist_map_numpy = dist_map.detach().numpy()
+    actions = []
+    for i in range(grid_size - 1):
+        action = np.argmax(dist_map_numpy[0, :, i + 1], axis=0)
+        actions.append(action)
+    actions = np.array(actions)
+    y = path_planner.action2point(actions)
+    p = np.column_stack((x, y))
+    path = path_planner.construct_sp(p)
+    obs_col = path_planner.obstacle_check(grid)
+
+    path_global = robot.transform_path_to_global(path)
 
     # Plot everything
     plt.figure(figsize=(8, 8))
     plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
+    plt.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
     if inertial_points.size > 0:
         plt.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
-    plt.plot(path_np[:, 0], path_np[:, 1], 'b.-', label='Robot Path')
+    plt.plot(states_np[:, 0], states_np[:, 1], 'b.-', label='Robot Path')
     # Draw the rectangle
     plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
 
