@@ -1,24 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
-
-
-
-# Generate a point cloud for obstacles
-grid_size = 5
-np.random.seed(42)  # For reproducible results
-point_cloud = np.random.uniform(-10, 10, (50, 2))  # 100 random points in a 2D space
-
-# Initial robot state [x, y, theta]
-state = np.array([0, 0, np.pi / 2])
-
-steps = 200
-left_wheel_velocity = 0.95
-right_wheel_velocity = 1
-dt = 10
-length = 5
-width = 5
 
 class Robot:
     def __init__(self, initial_state, wheel_radius=0.05, wheel_base=0.15):
@@ -97,67 +79,22 @@ class ObstacleGrid:
         return np.array(corners_global)
 
 
-def filter_front_points(state, point_cloud, length=length, width=width):
-    """
-    Filter points that are within the specified rectangle in front of the robot.
-    """
-    x, y, theta = state
-    inertial_points = []
-    body_points = []
-    for point in point_cloud:
-        # Transform point to robot coordinates
-        px, py = point[0] - x, point[1] - y
-        px_rot, py_rot = np.cos(-theta) * px - np.sin(-theta) * py, np.sin(-theta) * px + np.cos(-theta) * py
 
-        # Check if the point is within the rectangle
-        if 0.5 <= px_rot <= (length + 0.5) and -width / 2 <= py_rot <= width / 2:
-            inertial_points.append(point)
-            body_points.append([px_rot, py_rot])
+# Generate a point cloud for obstacles
+grid_size = 5
+np.random.seed(42)  # For reproducible results
+point_cloud = np.random.uniform(-10, 10, (50, 2))  # 100 random points in a 2D space
 
-    return np.array(inertial_points), np.array(body_points)
+# Initial robot state [x, y, theta]
+state = np.array([0, 0, np.pi / 2])
 
-# Simulate robot movement
-# path = simulate_movement(state, 200, 1.0, 0.5)
-
-def create_obstacle_grid(state, point_cloud, grid_size=(5, 5), area_size=(5, 5)):
-    """
-    Create a 5x5 grid of the area in front of the robot, marking cells with obstacles as 0 and free cells as 1.
-
-    Parameters:
-    - state: The current state of the robot (x, y, theta).
-    - point_cloud: The set of obstacle points.
-    - grid_size: The dimensions of the grid (rows, columns).
-    - area_size: The size of the area to cover with the grid (length, width).
-
-    Returns:
-    - A 5x5 numpy array representing the grid, with 0s for obstacles and 1s for free space.
-    """
-    x, y, theta = state
-    grid = np.ones(grid_size)  # Initialize grid as all free space
-
-    # Calculate the dimensions of each grid cell
-    cell_length = area_size[0] / grid_size[0]
-    cell_width = area_size[1] / grid_size[1]
-
-    # Filter points within the rectangular area in front of the robot
-    inertial_points, body_points = filter_front_points(state, point_cloud, *area_size)
-
-    # Assign values to the grid based on the point cloud
-    for point in inertial_points:
-        # Transform point to robot coordinates
-        px, py = point[0] - x, point[1] - y
-        px_rot, py_rot = np.cos(-theta) * px - np.sin(-theta) * py, np.sin(-theta) * px + np.cos(-theta) * py
-
-        # Determine the grid cell for the point
-        cell_x = int((px_rot - 0.5) // cell_width)
-        cell_y = int((2.5 - py_rot) // cell_length)
-
-        # Check boundaries and assign value
-        # if 0 <= cell_x < grid_size[1] and 0 <= cell_y < grid_size[0]:
-        grid[cell_y, cell_x] = 0  # Mark as obstacle
-
-    return grid
-
+# Parameter Initialization
+steps = 200
+left_wheel_velocity = 0.95
+right_wheel_velocity = 1
+dt = 10
+length = 5
+width = 5
 
 # Simulate the robot's movement for a given number of steps.
 path = [state]
