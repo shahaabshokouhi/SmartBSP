@@ -3,15 +3,34 @@ import matplotlib.pyplot as plt
 import torch
 from network import ConvNet
 from bspfunctions import SmartPSB
+from utils import *
+from parameters import *
+
 
 
 
 class Robot:
-    def __init__(self, initial_state, wheel_radius=0.05, wheel_base=0.15):
+    def __init__(self, initial_state, robot_path=None, wheel_radius=0.05, wheel_base=0.15,
+                 kp_linear=0.3, kd_linear=0.2, ki_linear=0.1,
+                 kp_angular=0.3, kd_angular=0.2, ki_angular=0.1):
         self.state = np.array(initial_state)
         self.wheel_radius = wheel_radius
         self.wheel_base = wheel_base
+        self.path = robot_path
+        self.kp_linear = kp_linear
+        self.kd_linear = kd_linear
+        self.ki_linear = ki_linear
 
+        self.kp_angular = kp_angular
+        self.kd_angular = kd_angular
+        self.ki_angular = ki_angular
+
+        self.prev_error_position = 0
+        self.prev_error_angle = 0
+
+        self.prev_body_to_goal = 0
+        self.prev_waypoint_idx = -1
+        self.dt = 0.5
     def update_state(self, left_wheel_velocity, right_wheel_velocity, dt):
         x, y, theta = self.state
         v_l, v_r = left_wheel_velocity, right_wheel_velocity
@@ -33,6 +52,46 @@ class Robot:
         path_global = np.dot(path, rotation_matrix.T) + [x, y]
 
         return path_global
+    def trackPID(self, n = 10):
+        trajectory = [self.state]
+        for idx in range(n):
+            target = self.path[idx + 1, :]
+            error_position = get_distance(self.state[0], self.state[1], target[0], target[1])
+
+            body_to_goal = get_angle(self.state[0], self.state[1], target[0], target[1])
+            # body_to_nose = get_angle(x[0, 0], x[1, 0], nose[0], nose[1])
+
+            # if self.prev_waypoint_idx == waypoint_idx and 350<(abs(self.prev_body_to_goal - body_to_goal)*180/np.pi):
+            # 	print("HERE")
+            # 	body_to_goal = self.prev_body_to_goal
+            error_angle = body_to_goal - self.state[2]
+
+            linear_velocity_control = self.kp_linear * error_position + self.kd_linear * (
+                        error_position - self.prev_error_position)
+            angular_velocity_control = self.kp_angular * error_angle + self.kd_angular * (
+                        error_angle - self.prev_error_angle)
+
+            self.prev_error_angle = error_angle
+            self.prev_error_position = error_position
+
+            self.prev_waypoint_idx = idx
+            self.prev_body_to_goal = body_to_goal
+
+            if linear_velocity_control > MAX_LINEAR_VELOCITY:
+                linear_velocity_control = MAX_LINEAR_VELOCITY
+
+            right_wheel_velocity, left_wheel_velocity = self.uniToDiff(linear_velocity_control, angular_velocity_control)
+            state = robot.update_state(left_wheel_velocity, right_wheel_velocity, self.dt)
+            trajectory.append(self.state)
+        return  np.array(trajectory)
+
+    def getPath(self, path):
+        self.path = path
+
+    def uniToDiff(self, v, w):
+        vR = (2 * v + w * self.wheel_base) / (2 * self.wheel_radius)
+        vL = (2 * v - w * self.wheel_base) / (2 * self.wheel_radius)
+        return vR, vL
 
 class ObstacleGrid:
     def __init__(self, point_cloud, grid_size=(5, 5), area_size=(5, 5)):
@@ -115,31 +174,31 @@ x = np.arange(0, grid_size + 1)
 
 # loading the network
 actor = ConvNet(grid_size=grid_size)
-actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t1.pth'))
+actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
 path_planner = SmartPSB(num_y=grid_size)
 
 # Simulate the robot's movement for a given number of steps.
-states = [state]
+# states = [state]
 robot = Robot(state)
 obstacle_to_grid = ObstacleGrid(point_cloud, grid_size=(grid_size, grid_size), area_size=(length, width))
 
 for _ in range(steps):
 
     # Update the path
-    state = robot.update_state(left_wheel_velocity, right_wheel_velocity, dt)
-    states.append(state)
-    states_np = np.array(states)
+    # state = robot.update_state(left_wheel_velocity, right_wheel_velocity, dt)
+    # states.append(state)
+    # states_np = np.array(states)
 
     # Filter points directly in front of the robot
-    inertial_points, body_points = obstacle_to_grid.filter_front_points(state)
+    inertial_points, body_points = obstacle_to_grid.filter_front_points(robot.state)
     print("Inertial points: ", inertial_points)
     print("Body points: ", body_points)
 
     # Get the final position of the robot to draw the rectangle
-    rectangle_corners = obstacle_to_grid.get_rectangle_corners(state)
+    rectangle_corners = obstacle_to_grid.get_rectangle_corners(robot.state)
 
     # creating the grid, and the path
-    grid = obstacle_to_grid.create_grid(state)
+    grid = obstacle_to_grid.create_grid(robot.state)
     grid = grid.view(1, grid_size, grid_size)
     print("extracted grid: ", grid)
     dist_map = actor(grid)
@@ -155,14 +214,15 @@ for _ in range(steps):
     obs_col = path_planner.obstacle_check(grid)
 
     path_global = robot.transform_path_to_global(path)
-
+    robot.getPath(path_global)
+    trajectory = robot.trackPID(n=50)
     # Plot everything
     plt.figure(figsize=(8, 8))
     plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
     plt.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
     if inertial_points.size > 0:
         plt.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
-    plt.plot(states_np[:, 0], states_np[:, 1], 'b.-', label='Robot Path')
+    plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
     # Draw the rectangle
     plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
 
