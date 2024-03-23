@@ -93,6 +93,8 @@ class Robot:
         vL = (2 * v - w * self.wheel_base) / (2 * self.wheel_radius)
         return vR, vL
 
+
+
 class ObstacleGrid:
     def __init__(self, point_cloud, grid_size=(5, 5), area_size=(5, 5)):
         self.point_cloud = point_cloud
@@ -151,13 +153,37 @@ class ObstacleGrid:
             corners_global.append([px_rot, py_rot])
 
         return np.array(corners_global)
+    def distance(self, point1, point2):
+        """Calculate the Euclidean distance between two points."""
+        return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
+    def target_normalization(self, state, target):
+        x, y, theta = state
+        min_distance = float('inf')
+        y_points = np.arange(-np.floor(self.grid_size[0] / 2), np.floor(self.grid_size[0] / 2) + 1)[::-1]
+        x_points = self.grid_size[0] * np.ones_like(y_points)
+        points = np.column_stack((x_points, y_points))
+
+        # Rotate points
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                    [np.sin(theta), np.cos(theta)]])
+        rotated_points = np.dot(points, rotation_matrix.T)  # Transpose to align dimensions
+        # Translate points
+        global_points = rotated_points + np.array([x, y])
+        for idx in range(global_points.shape[0]):
+            dist = self.distance(global_points[idx], target)
+            if dist < min_distance:
+                min_distance = dist
+                normalized_target = global_points[idx]
+                min_idx = idx + 1
+
+        return min_idx, normalized_target
 
 
 # Generate a point cloud for obstacles
 grid_size = 5
 np.random.seed(42)  # For reproducible results
-point_cloud = np.random.uniform(-10, 10, (50, 2))  # 100 random points in a 2D space
+point_cloud = np.random.uniform(-10, 10, (10, 2))  # 100 random points in a 2D space
 
 # Initial robot state [x, y, theta]
 state = np.array([0, 0, np.pi / 2])
@@ -170,24 +196,33 @@ dt = 10
 length = 5
 width = 5
 x = np.arange(0, grid_size + 1)
+final_target = np.array([-100, 100], dtype=np.float32)
 
-
-# loading the network
-actor = ConvNet(grid_size=grid_size)
-actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
 path_planner = SmartPSB(num_y=grid_size)
 
 # Simulate the robot's movement for a given number of steps.
 # states = [state]
 robot = Robot(state)
 obstacle_to_grid = ObstacleGrid(point_cloud, grid_size=(grid_size, grid_size), area_size=(length, width))
+# Preload all networks
+actors = {
+    1: ConvNet(grid_size=grid_size),
+    2: ConvNet(grid_size=grid_size),
+    3: ConvNet(grid_size=grid_size),
+    4: ConvNet(grid_size=grid_size),
+    5: ConvNet(grid_size=grid_size),
+}
+
+# Load state dicts
+actors[1].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t1.pth'))
+actors[2].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t2.pth'))
+actors[3].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t3.pth'))
+actors[4].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t4.pth'))
+actors[5].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
 
 for _ in range(steps):
 
-    # Update the path
-    # state = robot.update_state(left_wheel_velocity, right_wheel_velocity, dt)
-    # states.append(state)
-    # states_np = np.array(states)
+    whichNetwork, _ = obstacle_to_grid.target_normalization(robot.state, final_target)
 
     # Filter points directly in front of the robot
     inertial_points, body_points = obstacle_to_grid.filter_front_points(robot.state)
@@ -201,7 +236,14 @@ for _ in range(steps):
     grid = obstacle_to_grid.create_grid(robot.state)
     grid = grid.view(1, grid_size, grid_size)
     print("extracted grid: ", grid)
-    dist_map = actor(grid)
+
+    if whichNetwork in actors:
+        actor_network = actors[whichNetwork]
+        dist_map = actor_network(grid)  # Use the selected network
+    else:
+        print("Invalid network number. Skipping.")
+        continue
+
     dist_map_numpy = dist_map.detach().numpy()
     actions = []
     for i in range(grid_size - 1):
@@ -215,7 +257,7 @@ for _ in range(steps):
 
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
-    trajectory = robot.trackPID(n=50)
+    trajectory = robot.trackPID(n=98)
     # Plot everything
     plt.figure(figsize=(8, 8))
     plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
