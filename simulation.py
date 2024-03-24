@@ -31,6 +31,8 @@ class Robot:
         self.prev_body_to_goal = 0
         self.prev_waypoint_idx = -1
         self.dt = 0.5
+        self.trajectory = np.zeros((1, 3))
+
     def update_state(self, left_wheel_velocity, right_wheel_velocity, dt):
         x, y, theta = self.state
         v_l, v_r = left_wheel_velocity, right_wheel_velocity
@@ -83,6 +85,7 @@ class Robot:
             right_wheel_velocity, left_wheel_velocity = self.uniToDiff(linear_velocity_control, angular_velocity_control)
             state = robot.update_state(left_wheel_velocity, right_wheel_velocity, self.dt)
             trajectory.append(self.state)
+        self.trajectory = np.vstack((self.trajectory, trajectory))
         return  np.array(trajectory)
 
     def getPath(self, path):
@@ -92,6 +95,7 @@ class Robot:
         vR = (2 * v + w * self.wheel_base) / (2 * self.wheel_radius)
         vL = (2 * v - w * self.wheel_base) / (2 * self.wheel_radius)
         return vR, vL
+
 
 
 
@@ -111,7 +115,7 @@ class ObstacleGrid:
         for point in self.point_cloud:
             px, py = point[0] - x, point[1] - y
             px_rot, py_rot = np.cos(-theta) * px - np.sin(-theta) * py, np.sin(-theta) * px + np.cos(-theta) * py
-            if 0.5 <= px_rot <= (self.area_size[0] + 0.5) and -self.area_size[1] / 2 <= py_rot <= self.area_size[1] / 2:
+            if 0.5 <= px_rot <= (self.area_size[0] + 0.49) and (-self.area_size[1] / 2 + 0.01) < py_rot <= self.area_size[1] / 2:
                 inertial_points.append(point)
                 body_points.append([px_rot, py_rot])
 
@@ -179,11 +183,63 @@ class ObstacleGrid:
 
         return min_idx, normalized_target
 
+def generate_square_obstacle(center, size, points_per_edge):
+    cx, cy = center
+    half_size = size / 2
+
+    # Corners of the square
+    corners = np.array([
+        [cx - half_size, cy - half_size],  # Bottom left
+        [cx + half_size, cy - half_size],  # Bottom right
+        [cx + half_size, cy + half_size],  # Top right
+        [cx - half_size, cy + half_size],  # Top left
+    ])
+
+    # Generate points along the edges
+    edge_points = []
+    for i in range(4):
+        start = corners[i]
+        end = corners[(i + 1) % 4]
+        edge_points.extend(list(zip(np.linspace(start[0], end[0], points_per_edge, endpoint=False),
+                                    np.linspace(start[1], end[1], points_per_edge, endpoint=False))))
+
+    return np.array(edge_points)
+
+def generate_multiple_squares(centers, size, points_per_edge):
+    """
+    Generate point clouds for multiple squares.
+
+    Args:
+    centers (list of tuples): List of (x, y) coordinates for the center of each square.
+    size (float or list): The length of a side of the squares. If a single float is given,
+                          all squares will have the same size. If a list is provided,
+                          it must match the length of centers and specify the size for each square.
+    points_per_edge (int): The number of points to generate per edge of the square.
+
+    Returns:
+    numpy.ndarray: An array of points representing all the obstacles.
+    """
+    all_points = []
+    for i, center in enumerate(centers):
+        current_size = size[i] if isinstance(size, list) else size
+        square_points = generate_square_obstacle(center, current_size, points_per_edge)
+        all_points.append(square_points)
+
+    return np.vstack(all_points)  # Combine all points into one array
+
 
 # Generate a point cloud for obstacles
 grid_size = 5
-np.random.seed(42)  # For reproducible results
-point_cloud = np.random.uniform(-10, 10, (10, 2))  # 100 random points in a 2D space
+# np.random.seed(3)  # For reproducible results
+centers = np.random.uniform(-100, 100, (200, 2))  # Centers of the squares
+size = 1  # Use the same size for all squares
+# or use size = [5, 7] to specify different sizes for each square
+points_per_edge = 25  # Number of points per edge
+
+# point_cloud1 = generate_square_obstacle(center=center, size=size, points_per_edge=points_per_edge)
+# point_cloud2 = generate_square_obstacle(center=(-2, 5), size=size, points_per_edge=points_per_edge)
+point_cloud = generate_multiple_squares(centers, size, points_per_edge)
+# point_cloud = np.random.uniform(-10, 10, (10, 2))  # 100 random points in a 2D space
 
 # Initial robot state [x, y, theta]
 state = np.array([0, 0, np.pi / 2])
@@ -226,8 +282,8 @@ for _ in range(steps):
 
     # Filter points directly in front of the robot
     inertial_points, body_points = obstacle_to_grid.filter_front_points(robot.state)
-    print("Inertial points: ", inertial_points)
-    print("Body points: ", body_points)
+    # print("Inertial points: ", inertial_points)
+    # print("Body points: ", body_points)
 
     # Get the final position of the robot to draw the rectangle
     rectangle_corners = obstacle_to_grid.get_rectangle_corners(robot.state)
@@ -257,14 +313,16 @@ for _ in range(steps):
 
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
-    trajectory = robot.trackPID(n=98)
+    trajectory = robot.trackPID(n=90)
     # Plot everything
     plt.figure(figsize=(8, 8))
     plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
     plt.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
     if inertial_points.size > 0:
         plt.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
-    plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
+    # plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
+    plt.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
+
     # Draw the rectangle
     plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
 
