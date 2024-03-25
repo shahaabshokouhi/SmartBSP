@@ -230,8 +230,8 @@ def generate_multiple_squares(centers, size, points_per_edge):
 
 # Generate a point cloud for obstacles
 grid_size = 5
-# np.random.seed(3)  # For reproducible results
-centers = np.random.uniform(-100, 100, (200, 2))  # Centers of the squares
+np.random.seed(1)  # For reproducible results
+centers = np.random.uniform(-100, 100, (1000, 2))  # Centers of the squares
 size = 1  # Use the same size for all squares
 # or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 25  # Number of points per edge
@@ -252,7 +252,7 @@ dt = 10
 length = 5
 width = 5
 x = np.arange(0, grid_size + 1)
-final_target = np.array([-100, 100], dtype=np.float32)
+final_target = np.array([100, 100], dtype=np.float32)
 
 path_planner = SmartPSB(num_y=grid_size)
 
@@ -318,6 +318,8 @@ for _ in range(steps):
     plt.figure(figsize=(8, 8))
     plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
     plt.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
+    plt.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
+
     if inertial_points.size > 0:
         plt.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
     # plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
