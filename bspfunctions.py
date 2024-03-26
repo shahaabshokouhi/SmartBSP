@@ -121,7 +121,7 @@ class SmartPSB():
         collision = False
         # Print the indices of the zero elements
         for i, j in zip(zero_indices[0], zero_indices[1]):
-            obs_pos.append([j, np.floor(self.num_y/2) - i])
+            obs_pos.append([j + 1, np.floor(self.num_y/2) - i])
             # print(f"Obstacle detected at x = {j} and y = {2 - i}")
         for pos in self.val:
             x = pos[0]
@@ -135,10 +135,10 @@ class SmartPSB():
         # Get the indices of the zero elements using NumPy's np.where function
         zero_indices = np.where(grid == 0)
         obs_pos = []
-        collision = False
+        # collision = False
         # Print the indices of the zero elements
         for i, j in zip(zero_indices[0], zero_indices[1]):
-            obs_pos.append([j, np.floor(self.num_y/2) - i])
+            obs_pos.append([j + 1, np.floor(self.num_y/2) - i])
         return np.array(obs_pos)
 
     def distance(self, point1, point2):

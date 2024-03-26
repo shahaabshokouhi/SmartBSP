@@ -22,7 +22,7 @@ num_samples = 10000
 griddataset = GridDataset(n, num_samples, test=False)
 gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
 actor = ConvNet(grid_size=n)
-actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
+actor.load_state_dict(torch.load('ppo_actor.pth'))
 batch_rew_history = []
 obs_cols = []
 render = False
@@ -42,7 +42,7 @@ for idx, batch_grids in enumerate(gridloader):
         path = path_planner.construct_sp(p)
         obs_col = path_planner.obstacle_check(batch_grids[j, 0])
         obs_cols.append(obs_col)
-        if obs_col and render:
+        if render and obs_col:
             grid_example_numpy = batch_grids[j].detach().numpy().reshape(n, n)
             obstacles = path_planner.obstacle_from_grid(grid_example_numpy)
             dist_map_numpy_grid = dist_map_numpy[j]

@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.optim import Adam
 import time
 warnings.filterwarnings('ignore')
-torch.manual_seed(2)
+torch.manual_seed(4)
 
 # Check if GPU is available and set the device accordingly
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,7 +20,7 @@ print(f"Using device: {device}")
 n = 5  # N by N view of the robot, must be odd
 x = np.arange(0, n + 1)
 path_planner = SmartPSB(num_y=n)
-target = np.array([10, -2])
+target = np.array([10, 2])
 possible_actions = np.arange(0, n)
 num_samples = 10000
 batch_size = 10
@@ -30,8 +30,8 @@ actor = ConvNet(grid_size=n).to(device)
 critic = ConvVal(grid_size=n).to(device)
 
 #####
-# critic.load_state_dict(torch.load('ppo_critic_n5_ep3_10000_t2.pth'))
-# actor.load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t2.pth'))
+critic.load_state_dict(torch.load('ppo_critic.pth'))
+actor.load_state_dict(torch.load('ppo_actor.pth'))
 
 ####
 
@@ -43,7 +43,7 @@ num_epochs = 3
 n_updates_per_iteration = 5
 ppo_clip = 0.2
 save_frequency = 100
-render = True
+render = False
 
 actor_losses = []
 critic_losses = []
@@ -172,6 +172,7 @@ for epoch in range(num_epochs):
                 actions = np.array(actions)
                 print(f'Actions for grid {idx + 1} are {actions}')
                 print('Grid: ', grid_example_numpy)
+                print('Obstacles: ', obstacles)
                 y = path_planner.action2point(actions)
                 p = np.column_stack((x, y))  # Assuming x coordinates are sequential
                 path = path_planner.construct_sp(p)

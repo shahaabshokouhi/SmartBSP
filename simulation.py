@@ -230,9 +230,10 @@ def generate_multiple_squares(centers, size, points_per_edge):
 
 # Generate a point cloud for obstacles
 grid_size = 5
-np.random.seed(1)  # For reproducible results
-centers = np.random.uniform(-100, 100, (1000, 2))  # Centers of the squares
-size = 1  # Use the same size for all squares
+np.random.seed(5)  # For reproducible results
+centers = np.random.uniform(-100, 100, (200, 2))  # Centers of the squares
+# centers = np.array([[10, 10]])
+size = 5  # Use the same size for all squares
 # or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 25  # Number of points per edge
 
@@ -252,7 +253,7 @@ dt = 10
 length = 5
 width = 5
 x = np.arange(0, grid_size + 1)
-final_target = np.array([100, 100], dtype=np.float32)
+final_target = np.array([100, 25], dtype=np.float32)
 
 path_planner = SmartPSB(num_y=grid_size)
 
@@ -309,8 +310,8 @@ for _ in range(steps):
     y = path_planner.action2point(actions)
     p = np.column_stack((x, y))
     path = path_planner.construct_sp(p)
-    obs_col = path_planner.obstacle_check(grid)
-
+    obs_col = path_planner.obstacle_check(grid[0])
+    print(obs_col)
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
     trajectory = robot.trackPID(n=90)
@@ -335,5 +336,5 @@ for _ in range(steps):
     plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
     plt.grid()
     plt.show()
-
+    obs_col = path_planner.obstacle_check(grid[0])
 

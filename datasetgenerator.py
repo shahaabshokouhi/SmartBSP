@@ -20,9 +20,13 @@ class GridDataset(Dataset):
             # for col in range(self.n-3):
             #     random_row = np.random.randint(0, self.n)
             #     grid[random_row, col + 3] = 0.0  # Set the chosen cell to blue (assuming [0, 0, 1] is blue in your RGB representation)
-            grid[:, 6] = 0.0
-            random_row = np.random.randint(0, self.n)
-            grid[5:, 6] = 1.0
+            # grid[:, 3] = 0.0
+            # random_row = np.random.randint(0, self.n)
+            grid[2, 3] = 0.0
+            grid[1, 3] = 0.0
+
+            grid[2, 4] = 0.0
+            grid[1, 4] = 0.0
             # random_row = np.random.randint(0, self.n)
             # grid[random_row, 4] = 0.0
             # random_row = np.random.randint(0, 2)
@@ -31,7 +35,7 @@ class GridDataset(Dataset):
         else:
             for col in range(self.n-2):
                 random_row = np.random.randint(0, self.n)
-                grid[random_row, col + 2] = 0.0  # Set the chosen cell to blue (assuming [0, 0, 1] is blue in your RGB representation)
+                grid[random_row, col + 1] = 0.0  # Set the chosen cell to blue (assuming [0, 0, 1] is blue in your RGB representation)
         return grid
 
 
