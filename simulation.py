@@ -32,6 +32,7 @@ class Robot:
         self.prev_waypoint_idx = -1
         self.dt = 0.5
         self.trajectory = np.zeros((1, 3))
+        self.distance_lookahead = 0.2
 
     def update_state(self, left_wheel_velocity, right_wheel_velocity, dt):
         x, y, theta = self.state
@@ -54,10 +55,32 @@ class Robot:
         path_global = np.dot(path, rotation_matrix.T) + [x, y]
 
         return path_global
+
+    def get_closest_waypoint_index(self):
+        distances = [np.linalg.norm(np.array(waypoint[:2]) - np.array(self.state[:2])) for waypoint in self.path]
+        return np.argmin(distances)
+
+    def get_reference_index(self):
+        closest_index = self.get_closest_waypoint_index()
+
+        for i in range(closest_index + 1, len(self.path)):
+            if np.linalg.norm(np.array(self.path[i][:2]) - np.array(self.state[:2])) >= self.distance_lookahead:
+                # Optionally, check if the previous index is closer to the desired lookahead distance
+                # if i > 0 and (np.linalg.norm(
+                #         np.array(self.path[i - 1][:2]) - np.array(self.state[:2])) - self.distance_lookahead) < \
+                #         (np.linalg.norm(
+                #             np.array(self.path[i][:2]) - np.array(self.state[:2])) - self.distance_lookahead):
+                #     return i - 1
+                return i
+        return len(self.path) - 1  # Return the final state if no state is beyond the lookahead distance
     def trackPID(self, n = 10):
         trajectory = [self.state]
-        for idx in range(n):
-            target = self.path[idx + 1, :]
+        reference_index = 0
+        while reference_index < n:
+            reference_index = self.get_reference_index()
+            if reference_index == 32:
+                print()
+            target = self.path[reference_index, :]
             error_position = get_distance(self.state[0], self.state[1], target[0], target[1])
 
             body_to_goal = get_angle(self.state[0], self.state[1], target[0], target[1])
@@ -66,7 +89,8 @@ class Robot:
             # if self.prev_waypoint_idx == waypoint_idx and 350<(abs(self.prev_body_to_goal - body_to_goal)*180/np.pi):
             # 	print("HERE")
             # 	body_to_goal = self.prev_body_to_goal
-            error_angle = body_to_goal - self.state[2]
+            # error_angle = body_to_goal - self.state[2]
+            error_angle = get_angle_difference(body_to_goal, self.state[2])
 
             linear_velocity_control = self.kp_linear * error_position + self.kd_linear * (
                         error_position - self.prev_error_position)
@@ -76,7 +100,7 @@ class Robot:
             self.prev_error_angle = error_angle
             self.prev_error_position = error_position
 
-            self.prev_waypoint_idx = idx
+            self.prev_waypoint_idx = reference_index
             self.prev_body_to_goal = body_to_goal
 
             if linear_velocity_control > MAX_LINEAR_VELOCITY:
@@ -231,9 +255,9 @@ def generate_multiple_squares(centers, size, points_per_edge):
 # Generate a point cloud for obstacles
 grid_size = 5
 np.random.seed(5)  # For reproducible results
-centers = np.random.uniform(-100, 100, (200, 2))  # Centers of the squares
+centers = np.random.uniform(-100, 100, (400, 2))  # Centers of the squares
 # centers = np.array([[10, 10]])
-size = 5  # Use the same size for all squares
+size = 2  # Use the same size for all squares
 # or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 25  # Number of points per edge
 
@@ -280,7 +304,6 @@ actors[5].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
 for _ in range(steps):
 
     whichNetwork, _ = obstacle_to_grid.target_normalization(robot.state, final_target)
-
     # Filter points directly in front of the robot
     inertial_points, body_points = obstacle_to_grid.filter_front_points(robot.state)
     # print("Inertial points: ", inertial_points)
@@ -314,7 +337,7 @@ for _ in range(steps):
     print(obs_col)
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
-    trajectory = robot.trackPID(n=90)
+    trajectory = robot.trackPID(n=70)
     # Plot everything
     plt.figure(figsize=(8, 8))
     plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
