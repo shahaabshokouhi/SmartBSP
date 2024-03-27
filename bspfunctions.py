@@ -114,6 +114,18 @@ class SmartPSB():
         y_points = np.insert(y_points, 0, [0, 0])
         return y_points
 
+    def action2point_polar(self, grid_centers, actions):
+        control_points = []
+        for idx, points in enumerate(grid_centers):
+            control_points.append(points[actions[idx]])
+        first_point = np.zeros((1, 2))
+        second_point = np.array([[grid_centers[0,4,0], 0]])
+
+        control_points.insert(0, second_point[0])  # Unpack the numpy array to match list format
+        control_points.insert(0, first_point[0])  # Unpack the numpy array to match list format
+
+        return np.array(control_points)
+
     def obstacle_check(self, grid):
         # Get the indices of the zero elements using NumPy's np.where function
         zero_indices = np.where(grid == 0)
