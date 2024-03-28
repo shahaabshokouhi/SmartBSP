@@ -6,6 +6,8 @@ class SmartPSB():
     def __init__(self, d=1, num_y=5):
         self.d = d
         self.num_y = num_y
+        self.grid_centers = []
+        self.grid_centers_polar = []
 
     def construct_sp(self, p):
         n = p.shape[0]
@@ -64,8 +66,9 @@ class SmartPSB():
 
             valy[l] = Y[order-1, order-1]
 
-        self.val = np.column_stack((valx[:-1], valy[:-1]))
-        return self.val
+        self.path = np.column_stack((valx[:-1], valy[:-1]))
+        self.cartesian_to_polar()
+        return self.path
 
     def calculate_cost(self, p_spl, target, grid):
         """
@@ -116,7 +119,7 @@ class SmartPSB():
 
     def action2point_polar(self, grid_centers, actions):
         control_points = []
-        for idx, points in enumerate(grid_centers):
+        for idx, points in enumerate(grid_centers[2:]):
             control_points.append(points[actions[idx]])
         first_point = np.zeros((1, 2))
         second_point = np.array([[grid_centers[0,4,0], 0]])
@@ -153,6 +156,16 @@ class SmartPSB():
             obs_pos.append([j + 1, np.floor(self.num_y/2) - i])
         return np.array(obs_pos)
 
+    def obstacle_from_grid_polar(self, grid):
+        # Get the indices of the zero elements using NumPy's np.where function
+        zero_indices = np.where(grid == 0)
+        obs_pos = []
+        # collision = False
+        # Print the indices of the zero elements
+        for i, j in zip(zero_indices[0], zero_indices[1]):
+            obs_pos.append(self.grid_centers_polar[j, i])
+        return np.array(obs_pos)
+
     def distance(self, point1, point2):
         """Calculate the Euclidean distance between two points."""
         return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
@@ -173,3 +186,103 @@ class SmartPSB():
 
         return normalized_target
 
+    def rotate_points(self, x, y, angle_deg):
+        angle_rad = np.radians(angle_deg)
+        x_rot = x * np.cos(angle_rad) - y * np.sin(angle_rad)
+        y_rot = x * np.sin(angle_rad) + y * np.cos(angle_rad)
+        return x_rot, y_rot
+
+    def calculate_grid_centers(self, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle):
+        # Function to calculate midpoints in polar coordinates
+        def midpoint_polar(r1, r2, theta1, theta2):
+            r_mid = (r1 + r2) / 2
+            theta_mid = (theta1 + theta2) / 2
+            return r_mid, theta_mid
+
+        # Rotate a point in polar coordinates
+        def rotate_point_polar(r, theta, angle_deg):
+            theta_rad = np.radians(angle_deg)
+            theta_rot = theta + theta_rad
+            return r, theta_rot
+
+        grid_centers = np.zeros((10, 9, 2), dtype=np.float32)
+        grid_centers_polar = np.zeros((10, 9, 2), dtype=np.float32)
+
+        # grid_centers=[]
+        radial_intervals = np.linspace(0, radius, num_slices_radial + 1)
+        angular_intervals = np.linspace(np.radians(theta1), np.radians(theta2), num_slices_angular + 1)
+
+        # Calculate midpoints for each grid cell
+        for i in range(num_slices_radial):
+            for j in reversed(range(num_slices_angular)):
+                r_mid, theta_mid = midpoint_polar(radial_intervals[i], radial_intervals[i + 1],
+                                                  angular_intervals[j], angular_intervals[j + 1])
+                # Apply rotation
+                r_rot, theta_rot = rotate_point_polar(r_mid, theta_mid, rotation_angle)
+                # Convert to Cartesian coordinates
+                x_rot = r_rot * np.cos(theta_rot)
+                y_rot = r_rot * np.sin(theta_rot)
+                grid_centers[i, 8 - j] = [x_rot, y_rot]
+                grid_centers_polar[i, 8 - j] = [r_rot, theta_rot]
+        self.grid_centers = grid_centers[1:, :, :]
+        self.grid_centers_polar = grid_centers_polar[1:, :, :]
+        return grid_centers[1:, :, :], grid_centers_polar[1:, :, :]
+
+    def create_polar_grid(self, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle):
+        # Generate the outer arc of the circle slice
+        theta_outer = np.linspace(np.radians(theta1), np.radians(theta2), 100)
+        x_outer = radius * np.cos(theta_outer)
+        y_outer = radius * np.sin(theta_outer)
+
+        def rotate_points(x, y, angle_deg):
+            angle_rad = np.radians(angle_deg)
+            x_rot = x * np.cos(angle_rad) - y * np.sin(angle_rad)
+            y_rot = x * np.sin(angle_rad) + y * np.cos(angle_rad)
+            return x_rot, y_rot
+
+        # Rotate the outer arc
+        x_outer_rot, y_outer_rot = rotate_points(x_outer, y_outer, rotation_angle)
+
+        # Re-initialize plot for rotated slice
+        fig, ax = plt.subplots()
+
+        # Plot the rotated outer arc
+        ax.plot(x_outer_rot, y_outer_rot, 'k')
+
+        # Rotate and plot the straight lines
+        for theta in np.linspace(np.radians(theta1), np.radians(theta2), num_slices_angular + 1):
+            x, y = radius * np.cos(theta), radius * np.sin(theta)
+            x_rot, y_rot = rotate_points(x, y, rotation_angle)
+            ax.plot([0, x_rot], [0, y_rot], 'blue')
+
+        # Rotate and plot the concentric arcs
+        for r in np.linspace(0, radius, num_slices_radial + 1):
+            x_concentric = r * np.cos(theta_outer)
+            y_concentric = r * np.sin(theta_outer)
+            x_concentric_rot, y_concentric_rot = rotate_points(x_concentric, y_concentric, rotation_angle)
+            ax.plot(x_concentric_rot, y_concentric_rot, 'red')
+        # grid_centers = self.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular,
+        #                                       rotation_angle)
+        # print(grid_centers)
+        # ax.scatter(grid_centers[0, 0, 0], grid_centers[0, 0, 1], c='yellow', label='centers')
+        # Adjust the plot for the rotated slice
+        ax.set_aspect('equal')
+        plt.xlim(0, radius + 0.1)
+        plt.ylim(-radius - 0.1, radius + 0.1)
+        plt.show()
+
+    import numpy as np
+
+    def cartesian_to_polar(self):
+
+        x = self.path[:, 0]
+        y = self.path[:, 1]
+
+        r = np.sqrt(x ** 2 + y ** 2)
+        theta = np.arctan2(y, x)
+
+        theta[theta < 0] += 2 * np.pi
+
+        self.path_polar = np.vstack((r, theta)).T
+
+        return self.path_polar
