@@ -29,13 +29,13 @@ actor = ConvNet(grid_size=n).to(device)
 critic = ConvVal(grid_size=n).to(device)
 
 # Define parameters for the circle slice
-theta1, theta2 = 0, 180  # Degrees
+theta1, theta2 = 0, 90  # Degrees
 radius = 3
 num_slices_radial = 10
 num_slices_angular = 9
-rotation_angle = -90
+rotation_angle = -45
 
-grid_centers = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
+grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
 #####
 # critic.load_state_dict(torch.load('ppo_critic.pth'))
 # actor.load_state_dict(torch.load('ppo_actor.pth'))
@@ -49,7 +49,8 @@ num_epochs = 3
 n_updates_per_iteration = 5
 ppo_clip = 0.2
 save_frequency = 100
-render = False
+render = True
+
 
 actor_losses = []
 critic_losses = []
@@ -91,7 +92,7 @@ for epoch in range(num_epochs):
             path = path_planner.construct_sp(p)
             # plt.plot(path[:, 0], path[:, 1])
             # plt.show()
-            cost = path_planner.calculate_cost(path, target, grid)
+            cost = path_planner.calculate_cost_polar(path, target, grid)
             batch_rew.append(cost)
             batch_actions.append(actions)
             batch_log_probs.append(log_probs)
@@ -162,14 +163,14 @@ for epoch in range(num_epochs):
             for idx, ax in enumerate(axes):
                 grid_example_tensor = batch_grids[idx]
                 grid_example_numpy = grid_example_tensor.detach().numpy().reshape(n, n)
-                obstacles = path_planner.obstacle_from_grid(grid_example_numpy)
+                obstacles, _ = path_planner.obstacle_from_grid_polar(grid_example_numpy)
                 dist_map = actor(grid_example_tensor)
                 dist_map_numpy = dist_map.detach().numpy()
 
                 # Plot grid
                 ax.scatter(obstacles[:,0], obstacles[:,1], c='yellow', alpha=1)
-                ax.imshow(np.concatenate((np.zeros((n, 1)), dist_map_numpy.reshape(n, n)), axis=1), cmap='gray', extent=[-0.5, n + 0.5, -n/2, n/2])
-
+                # ax.imshow(np.concatenate((np.zeros((n, 1)), dist_map_numpy.reshape(n, n)), axis=1), cmap='gray', extent=[-0.5, n + 0.5, -n/2, n/2])
+                ax = path_planner.create_polar_grid(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle, ax)
                 ax.set_title(f"Grid {idx + 1}")
 
                 actions = []
@@ -185,10 +186,10 @@ for epoch in range(num_epochs):
                 print(f'Actions for grid {idx + 1} are {actions}')
                 print('Grid: ', grid_example_numpy)
                 print('Obstacles: ', obstacles)
-                y = path_planner.action2point(actions)
-                p = np.column_stack((x, y))  # Assuming x coordinates are sequential
+                p = path_planner.action2point_polar(grid_centers, actions)
+                # p = np.column_stack((x, y))  # Assuming x coordinates are sequential
                 path = path_planner.construct_sp(p)
-                collision = path_planner.obstacle_check(grid_example_numpy)
+                collision = path_planner.obstacle_check_polar(grid_example_numpy)
                 print('Collision: ', collision)
                 print('-'*10)
                 # Plotting the path

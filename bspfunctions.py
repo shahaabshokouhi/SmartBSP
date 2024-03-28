@@ -106,6 +106,42 @@ class SmartPSB():
 
         return cost
 
+    def calculate_cost_polar(self, p_spl, target, grid):
+        """
+        Calculate the total curvature cost of a path.
+
+        Parameters:
+        - p_spl: A 2D NumPy array of path coordinates, shape (2, N), where N is the number of points.
+
+        Returns:
+        - Total curvature cost of the path.
+        """
+        # Transpose p_spl to match MATLAB's use of column vectors
+        p_spl = p_spl.T
+        curve = 0
+        for ii in range(1, p_spl.shape[1] - 1):
+            A = 0.5 * abs((p_spl[0, ii] - p_spl[0, ii-1]) * (p_spl[1, ii+1] - p_spl[1, ii]) -
+                          (p_spl[1, ii] - p_spl[1, ii-1]) * (p_spl[0, ii+1] - p_spl[0, ii]))
+            newCurve = (4 * A) / (np.linalg.norm(p_spl[:, ii-1] - p_spl[:, ii]) *
+                                  np.linalg.norm(p_spl[:, ii] - p_spl[:, ii+1]) *
+                                  np.linalg.norm(p_spl[:, ii+1] - p_spl[:, ii-1]))
+            curve += newCurve
+
+        final_point = p_spl[:, -1]  # Get the last column
+
+        # normalized distance
+        # normalized_target = self.norm_target(target)
+        # distance = np.sqrt((normalized_target[0] - final_point[0])**2 + (normalized_target[1] - final_point[1])**2)
+        distance = 0
+        # curve = 0
+        collision = 0
+        if self.obstacle_check_polar(grid):
+            collision = 1000
+
+        cost = curve + 100 * distance + collision
+
+        return cost
+
     def action2point(self, actions):
         # actions should be n-2 dimensional vector (np array)
         y_possible_points = np.linspace(-((self.num_y - 1)/2) * self.d, ((self.num_y - 1)/2) * self.d, self.num_y)
@@ -146,6 +182,18 @@ class SmartPSB():
                     collision = True
         return collision
 
+    def obstacle_check_polar(self, grid):
+        # Get the indices of the zero elements using NumPy's np.where function
+        _, obs_pos = self.obstacle_from_grid_polar(grid)
+        collision = False
+        for pos in self.path_polar:
+            r = pos[0]
+            theta = pos[1]
+            for obs in obs_pos:
+                if r <= (obs[0] + 0.15) and r > (obs[0] - 0.15) and theta <= (obs[1] + np.radians(5)) and theta > (obs[1] - np.radians(5)):
+                    collision = True
+        return collision
+
     def obstacle_from_grid(self, grid):
         # Get the indices of the zero elements using NumPy's np.where function
         zero_indices = np.where(grid == 0)
@@ -160,11 +208,14 @@ class SmartPSB():
         # Get the indices of the zero elements using NumPy's np.where function
         zero_indices = np.where(grid == 0)
         obs_pos = []
+        obs_pos_polar = []
         # collision = False
         # Print the indices of the zero elements
         for i, j in zip(zero_indices[0], zero_indices[1]):
-            obs_pos.append(self.grid_centers_polar[j, i])
-        return np.array(obs_pos)
+            obs_pos_polar.append(self.grid_centers_polar[j, i])
+            obs_pos.append(self.grid_centers[j, i])
+
+        return np.array(obs_pos), np.array(obs_pos_polar)
 
     def distance(self, point1, point2):
         """Calculate the Euclidean distance between two points."""
@@ -228,7 +279,7 @@ class SmartPSB():
         self.grid_centers_polar = grid_centers_polar[1:, :, :]
         return grid_centers[1:, :, :], grid_centers_polar[1:, :, :]
 
-    def create_polar_grid(self, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle):
+    def create_polar_grid(self, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle, ax):
         # Generate the outer arc of the circle slice
         theta_outer = np.linspace(np.radians(theta1), np.radians(theta2), 100)
         x_outer = radius * np.cos(theta_outer)
@@ -244,7 +295,7 @@ class SmartPSB():
         x_outer_rot, y_outer_rot = rotate_points(x_outer, y_outer, rotation_angle)
 
         # Re-initialize plot for rotated slice
-        fig, ax = plt.subplots()
+        # fig, ax = plt.subplots()
 
         # Plot the rotated outer arc
         ax.plot(x_outer_rot, y_outer_rot, 'k')
@@ -267,9 +318,10 @@ class SmartPSB():
         # ax.scatter(grid_centers[0, 0, 0], grid_centers[0, 0, 1], c='yellow', label='centers')
         # Adjust the plot for the rotated slice
         ax.set_aspect('equal')
-        plt.xlim(0, radius + 0.1)
-        plt.ylim(-radius - 0.1, radius + 0.1)
-        plt.show()
+        # plt.xlim(0, radius + 0.1)
+        # plt.ylim(-radius - 0.1, radius + 0.1)
+        # plt.show()
+        return ax
 
     import numpy as np
 
@@ -281,7 +333,7 @@ class SmartPSB():
         r = np.sqrt(x ** 2 + y ** 2)
         theta = np.arctan2(y, x)
 
-        theta[theta < 0] += 2 * np.pi
+        # theta[theta < 0] += 2 * np.pi
 
         self.path_polar = np.vstack((r, theta)).T
 
