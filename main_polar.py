@@ -21,7 +21,7 @@ n = 9  # N by N view of the robot, must be odd
 path_planner = SmartPSB(num_y=n)
 target = np.array([10, 2])
 possible_actions = np.arange(0, n)
-num_samples = 10000
+num_samples = 100000
 batch_size = 10
 griddataset = GridDataset(n, num_samples)
 gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
@@ -37,8 +37,8 @@ rotation_angle = -45
 
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
 #####
-# critic.load_state_dict(torch.load('ppo_critic.pth'))
-# actor.load_state_dict(torch.load('ppo_actor.pth'))
+critic.load_state_dict(torch.load('ppo_critic.pth'))
+actor.load_state_dict(torch.load('ppo_actor.pth'))
 ####
 
 learning_rate = 0.001
