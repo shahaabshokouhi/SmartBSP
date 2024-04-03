@@ -12,7 +12,7 @@ from differential_drive_robot import Robot
 
 # Generate a point cloud for obstacles
 grid_size = 5
-np.random.seed(12)
+np.random.seed(33)
 centers = np.random.uniform(-100, 100, (400, 2))
 size = 2  # Use the same size for all squares or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 25  # Number of points per edge
@@ -95,7 +95,28 @@ for _ in range(steps):
     p = path_planner.action2point_polar(grid_centers, actions)
     path = path_planner.construct_sp(p)
     obs_col = path_planner.obstacle_check_polar(grid[0])
-    print(obs_col)
+
+    if obs_col:
+        print("Closest path is obstructed, changing the target temporarily")
+        for idx in range(1, grid_size + 1):
+            if idx == whichNetwork:
+                continue
+            actor_network = actors[idx]
+            dist_map = actor_network(grid)  # Use the selected network
+
+            dist_map_numpy = dist_map.detach().numpy()
+            actions = []
+            for i in range(grid_size - 1):
+                action = np.argmax(dist_map_numpy[0, :, i + 1], axis=0)
+                actions.append(action)
+            actions = np.array(actions)
+            p = path_planner.action2point_polar(grid_centers, actions)
+            path = path_planner.construct_sp(p)
+            obs_col = path_planner.obstacle_check_polar(grid[0])
+
+            if not obs_col:
+                continue
+
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
     fig, ax = plt.subplots()
