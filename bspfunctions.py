@@ -130,9 +130,9 @@ class SmartPSB():
         final_point = p_spl[:, -1]  # Get the last column
 
         # normalized distance
-        # normalized_target = self.norm_target(target)
-        # distance = np.sqrt((normalized_target[0] - final_point[0])**2 + (normalized_target[1] - final_point[1])**2)
-        distance = 0
+        normalized_target = self.norm_target_polar(target)
+        distance = np.sqrt((normalized_target[0] - final_point[0])**2 + (normalized_target[1] - final_point[1])**2)
+        # distance = 0
         # curve = 0
         collision = 0
         if self.obstacle_check_polar(grid):
@@ -155,10 +155,10 @@ class SmartPSB():
 
     def action2point_polar(self, grid_centers, actions):
         control_points = []
-        for idx, points in enumerate(grid_centers[2:]):
+        for idx, points in enumerate(grid_centers[1:]):
             control_points.append(points[actions[idx]])
         first_point = np.zeros((1, 2))
-        second_point = np.array([[grid_centers[0,4,0], 0]])
+        second_point = np.array([[grid_centers[0, self.num_y // 2, 0], 0]])
 
         control_points.insert(0, second_point[0])  # Unpack the numpy array to match list format
         control_points.insert(0, first_point[0])  # Unpack the numpy array to match list format
@@ -174,7 +174,7 @@ class SmartPSB():
         for i, j in zip(zero_indices[0], zero_indices[1]):
             obs_pos.append([j + 1, np.floor(self.num_y/2) - i])
             # print(f"Obstacle detected at x = {j} and y = {2 - i}")
-        for pos in self.val:
+        for pos in self.path:
             x = pos[0]
             y = pos[1]
             for obs in obs_pos:
@@ -190,7 +190,7 @@ class SmartPSB():
             r = pos[0]
             theta = pos[1]
             for obs in obs_pos:
-                if r <= (obs[0] + 0.15) and r > (obs[0] - 0.15) and theta <= (obs[1] + np.radians(5)) and theta > (obs[1] - np.radians(5)):
+                if r <= (obs[0] + 0.25) and r > (obs[0] - 0.25) and theta <= (obs[1] + np.radians(10)) and theta > (obs[1] - np.radians(10)):
                     collision = True
         return collision
 
@@ -237,6 +237,20 @@ class SmartPSB():
 
         return normalized_target
 
+    def norm_target_polar(self, target):
+        """Find the point closest to the target location."""
+        min_distance = float('inf')
+        points = self.grid_centers[4]
+        closest_point = None
+
+        for point in points:
+            dist = self.distance(point, target)
+            if dist < min_distance:
+                min_distance = dist
+                normalized_target = point
+
+        return normalized_target
+
     def rotate_points(self, x, y, angle_deg):
         angle_rad = np.radians(angle_deg)
         x_rot = x * np.cos(angle_rad) - y * np.sin(angle_rad)
@@ -256,8 +270,8 @@ class SmartPSB():
             theta_rot = theta + theta_rad
             return r, theta_rot
 
-        grid_centers = np.zeros((10, 9, 2), dtype=np.float32)
-        grid_centers_polar = np.zeros((10, 9, 2), dtype=np.float32)
+        grid_centers = np.zeros((self.num_y + 1, self.num_y, 2), dtype=np.float32)
+        grid_centers_polar = np.zeros((self.num_y + 1, self.num_y, 2), dtype=np.float32)
 
         # grid_centers=[]
         radial_intervals = np.linspace(0, radius, num_slices_radial + 1)
@@ -273,8 +287,8 @@ class SmartPSB():
                 # Convert to Cartesian coordinates
                 x_rot = r_rot * np.cos(theta_rot)
                 y_rot = r_rot * np.sin(theta_rot)
-                grid_centers[i, 8 - j] = [x_rot, y_rot]
-                grid_centers_polar[i, 8 - j] = [r_rot, theta_rot]
+                grid_centers[i, self.num_y - 1 - j] = [x_rot, y_rot]
+                grid_centers_polar[i, self.num_y - 1 - j] = [r_rot, theta_rot]
         self.grid_centers = grid_centers[1:, :, :]
         self.grid_centers_polar = grid_centers_polar[1:, :, :]
         return grid_centers[1:, :, :], grid_centers_polar[1:, :, :]

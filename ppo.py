@@ -5,32 +5,35 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torch.distributions import MultivariateNormal
+from network import ConvNet, ConvVal
 
 class PPO:
 
-    def __init__(self, policy_class, env, anim, **hyperparameters):
+    def __init__(self, path_planner, robot, obstacle_to_grid):
 
         # Initialize hyperparameters for training with PPO
-        self._init_hyperparameters(hyperparameters)
+        # self._init_hyperparameters(hyperparameters)
 
         # Extract environment information
-        self.env = env
-        self.obs_dim = env.state.shape[0]
-        self.act_dim = env.action.shape[0]
-        self.anim = anim
+        self.path_planner = path_planner
+        self.robot = robot
+        self.obstacle_to_grid = obstacle_to_grid
+        self.grid_size = 9
+        self.act_dim = 8
+        # self.anim = anim
 
         # Initialize actor and critic networks
-        self.actor = policy_class(self.obs_dim, self.act_dim) # Optimal Policy                                         # ALG STEP 1
-        self.critic = policy_class(self.obs_dim, 1) # Estimate the Advantage function
+        self.actor = ConvNet(self.grid_size) # Optimal Policy
+        self.critic = ConvVal(self.grid_size) # Estimate the Advantage function
 
         # Initialize optimizers for actor and critic
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
 
         # Initialize the covariance matrix used to query the actor for actions
-        self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.2)
-        self.cov_mat = torch.diag(self.cov_var)
-        self.N = 0
+        # self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.2)
+        # self.cov_mat = torch.diag(self.cov_var)
+        # self.N = 0
 
         # This logger will help us with printing out summaries of each iteration
         self.logger = {
@@ -160,14 +163,44 @@ class PPO:
             # Run an episode for a maximum of max_timesteps_per_episode timesteps
             for ep_t in range(self.max_timesteps_per_episode):
                 # If render is specified, render the environment
-                if self.render and (self.logger['i_so_far'] % self.render_every_i == 0) and len(batch_lens) == 0:
-                    rendered = self.anim.step( [obs[0], obs[1], obs[2], obs[3]], ep_t*0.1 )
-                    cv2.imshow( 'im', rendered )
-                    cv2.waitKey(100)
-                    cv2.moveWindow( 'im', 100, 100 )
+                # if self.render and (self.logger['i_so_far'] % self.render_every_i == 0) and len(batch_lens) == 0:
+                #     rendered = self.anim.step( [obs[0], obs[1], obs[2], obs[3]], ep_t*0.1 )
+                #     cv2.imshow( 'im', rendered )
+                #     cv2.waitKey(100)
+                #     cv2.moveWindow( 'im', 100, 100 )
 
-                # Track observations in this batch
+                # Filter points directly in front of the robot
+                inertial_points, body_points = self.obstacle_to_grid.filter_front_points(self.robot.state)
+
+                # Get the final position of the robot to draw the rectangle
+                rectangle_corners = self.obstacle_to_grid.get_rectangle_corners(self.robot.state)
                 ep_obs.append(obs)
+
+                # creating the grid, and the path
+                grid = self.obstacle_to_grid.create_grid(self.robot.state)
+                grid = grid.view(1, self.grid_size, self.grid_size)
+                print("extracted grid: ", grid)
+
+                # generating probability distribution map
+                dist_map = self.actor(grid)  # Use the selected network
+
+                # sampling actions
+                dist_map_numpy = dist_map.detach().numpy()
+                actions = []
+                for i in range(self.grid_size - 1):
+                    action = np.argmax(dist_map_numpy[0, :, i + 1], axis=0)
+                    actions.append(action)
+                actions = np.array(actions)
+
+                # generating the path
+                p = self.path_planner.action2point_polar(actions)
+                path = self.path_planner.construct_sp(p)
+                obs_col = self.path_planner.obstacle_check_polar(grid[0])
+
+                # tracking the path
+                path_global = self.robot.transform_path_to_global(path)
+                self.robot.getPath(path_global)
+                trajectory = self.robot.trackPID(n=70)
 
                 # Calculate action and make a step in the env.
                 # Note that rew is short for reward.

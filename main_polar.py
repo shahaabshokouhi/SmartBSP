@@ -5,23 +5,23 @@ import random
 from network import ConvNet, ConvVal
 import torch
 import warnings
-from datasetgenerator import GridDataset
+from datasetgenerator_polar import GridDataset
 from torch.utils.data import DataLoader
 import torch.nn as nn
 from torch.optim import Adam
 import time
 warnings.filterwarnings('ignore')
-torch.manual_seed(4)
+torch.manual_seed(13)
 
 # Check if GPU is available and set the device accordingly
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-n = 9  # N by N view of the robot, must be odd
+n = 5  # N by N view of the robot, must be odd
 path_planner = SmartPSB(num_y=n)
-target = np.array([10, 2])
+target = np.array([10, -10])
 possible_actions = np.arange(0, n)
-num_samples = 100000
+num_samples = 60000
 batch_size = 10
 griddataset = GridDataset(n, num_samples)
 gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
@@ -29,23 +29,23 @@ actor = ConvNet(grid_size=n).to(device)
 critic = ConvVal(grid_size=n).to(device)
 
 # Define parameters for the circle slice
-theta1, theta2 = 0, 90  # Degrees
+theta1, theta2 = 0, 100  # Degrees
 radius = 3
-num_slices_radial = 10
-num_slices_angular = 9
-rotation_angle = -45
+num_slices_radial = 6
+num_slices_angular = 5
+rotation_angle = -theta2/2
 
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
 #####
-critic.load_state_dict(torch.load('ppo_critic.pth'))
-actor.load_state_dict(torch.load('ppo_actor.pth'))
+# critic.load_state_dict(torch.load('ppo_critic.pth'))
+# actor.load_state_dict(torch.load('ppo_actor.pth'))
 ####
 
 learning_rate = 0.001
 # Initialize optimizers for actor and critic
 actor_optim = Adam(actor.parameters(), lr=learning_rate)
 critic_optim = Adam(critic.parameters(), lr=learning_rate)
-num_epochs = 3
+num_epochs = 1
 n_updates_per_iteration = 5
 ppo_clip = 0.2
 save_frequency = 100
@@ -103,8 +103,8 @@ for epoch in range(num_epochs):
         batch_rew_mean = batch_rew.mean().item()
         batch_rew_history.append(batch_rew_mean)
         V = critic(batch_grids).squeeze()
-        A_k = batch_rew - V.detach()
-        # A_k = batch_rew - 1000
+        # A_k = batch_rew - V.detach()
+        A_k = batch_rew - 1000
         A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
         for _ in range(n_updates_per_iteration):
             V = critic(batch_grids).squeeze()
@@ -167,8 +167,8 @@ for epoch in range(num_epochs):
                 dist_map = actor(grid_example_tensor)
                 dist_map_numpy = dist_map.detach().numpy()
 
-                # Plot grid
-                ax.scatter(obstacles[:,0], obstacles[:,1], c='yellow', alpha=1)
+
+
                 # ax.imshow(np.concatenate((np.zeros((n, 1)), dist_map_numpy.reshape(n, n)), axis=1), cmap='gray', extent=[-0.5, n + 0.5, -n/2, n/2])
                 ax = path_planner.create_polar_grid(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle, ax)
                 ax.set_title(f"Grid {idx + 1}")
@@ -176,11 +176,8 @@ for epoch in range(num_epochs):
                 actions = []
                 log_probs = []
                 for i in range(n-1):
-                    action = random.choices(possible_actions, dist_map_numpy[0, :, i+1])[0]
-                    action_prob = dist_map_numpy[0, :, i+1][action]
-                    log_prob = np.log(action_prob)
+                    action = np.argmax(dist_map_numpy[0, :, i + 1], axis=0)
                     actions.append(action)
-                    log_probs.append(log_prob)
 
                 actions = np.array(actions)
                 print(f'Actions for grid {idx + 1} are {actions}')
@@ -195,6 +192,8 @@ for epoch in range(num_epochs):
                 # Plotting the path
                 ax.plot(path[:, 0], path[:, 1], 'r-', label='Spline Path')  # Adjust path plotting as needed
                 ax.plot(p[:, 0], p[:, 1], 'o-', label='Control Points')  # Plot control points
+                # Plot obstacles
+                ax.scatter(obstacles[:, 0], obstacles[:, 1], c='red', marker='x', alpha=1)
                 ax.axis('equal')  # Ensure equal aspect ratio
                 # ax.legend()
 
@@ -202,6 +201,6 @@ for epoch in range(num_epochs):
             plt.show()
         if batch_idx % save_frequency == 0:
             # save the actor and critic network
-            torch.save(actor.state_dict(), 'ppo_actor.pth')
-            torch.save(critic.state_dict(), 'ppo_critic.pth')
+            torch.save(actor.state_dict(), 'ppo_actor_t5.pth')
+            torch.save(critic.state_dict(), 'ppo_critic_t5.pth')
 print('Done!')

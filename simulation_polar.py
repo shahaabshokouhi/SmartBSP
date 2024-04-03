@@ -6,13 +6,13 @@ from bspfunctions import SmartPSB
 from utils import *
 from parameters import *
 from environment import Environment
-from rangesensor import RangeSensor
+from rangesensor import RangeSensor, RangeSensorPolar
 from differential_drive_robot import Robot
 
 
 # Generate a point cloud for obstacles
 grid_size = 5
-np.random.seed(8)
+np.random.seed(11)
 centers = np.random.uniform(-100, 100, (400, 2))
 size = 2  # Use the same size for all squares or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 25  # Number of points per edge
@@ -29,15 +29,24 @@ right_wheel_velocity = 1
 dt = 10
 length = 5
 width = 5
-x = np.arange(0, grid_size + 1)
-final_target = np.array([100, 25], dtype=np.float32)
 
+# Creating path planner object
 path_planner = SmartPSB(num_y=grid_size)
 
+# Define parameters for the circle slice
+theta1, theta2 = 0, 100  # Degrees
+radius = 3
+num_slices_radial = 6
+num_slices_angular = 5
+rotation_angle = -theta2/2
+
+grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
+final_target = np.array([-100, 25], dtype=np.float32)
+
+
 # Simulate the robot's movement for a given number of steps.
-# states = [state]
 robot = Robot(state)
-obstacle_to_grid = RangeSensor(point_cloud, grid_size=(grid_size, grid_size), area_size=(length, width))
+obstacle_to_grid = RangeSensorPolar(grid_size, point_cloud, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
 # Preload all networks
 actors = {
     1: ConvNet(grid_size=grid_size),
@@ -48,26 +57,25 @@ actors = {
 }
 
 # Load state dicts
-actors[1].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t1.pth'))
-actors[2].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t2.pth'))
-actors[3].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t3.pth'))
-actors[4].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t4.pth'))
-actors[5].load_state_dict(torch.load('ppo_actor_n5_ep3_10000_t5.pth'))
+actors[1].load_state_dict(torch.load('ppo_actor_t1.pth'))
+actors[2].load_state_dict(torch.load('ppo_actor_t2.pth'))
+actors[3].load_state_dict(torch.load('ppo_actor_t3.pth'))
+actors[4].load_state_dict(torch.load('ppo_actor_t4.pth'))
+actors[5].load_state_dict(torch.load('ppo_actor_t5.pth'))
 
 for _ in range(steps):
 
-    whichNetwork, _ = obstacle_to_grid.target_normalization(robot.state, final_target)
+    whichNetwork, _ = obstacle_to_grid.target_normalization(robot.state, final_target, grid_centers[4])
+
     # Filter points directly in front of the robot
-    inertial_points, body_points = obstacle_to_grid.filter_front_points(robot.state)
+    inertial_points, body_points, body_points_polar = obstacle_to_grid.filter_front_points(robot.state)
     # print("Inertial points: ", inertial_points)
     # print("Body points: ", body_points)
 
-    # Get the final position of the robot to draw the rectangle
-    rectangle_corners = obstacle_to_grid.get_rectangle_corners(robot.state)
-
-    # creating the grid, and the path
+    # Creating the grid, and the path
     grid = obstacle_to_grid.create_grid(robot.state)
     grid = grid.view(1, grid_size, grid_size)
+
     print("extracted grid: ", grid)
 
     if whichNetwork in actors:
@@ -83,10 +91,9 @@ for _ in range(steps):
         action = np.argmax(dist_map_numpy[0, :, i + 1], axis=0)
         actions.append(action)
     actions = np.array(actions)
-    y = path_planner.action2point(actions)
-    p = np.column_stack((x, y))
+    p = path_planner.action2point_polar(grid_centers, actions)
     path = path_planner.construct_sp(p)
-    obs_col = path_planner.obstacle_check(grid[0])
+    obs_col = path_planner.obstacle_check_polar(grid[0])
     print(obs_col)
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
@@ -103,7 +110,7 @@ for _ in range(steps):
     plt.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
 
     # Draw the rectangle
-    plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
+    # plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
 
     plt.legend()
     plt.axis('equal')
@@ -112,5 +119,4 @@ for _ in range(steps):
     plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
     plt.grid()
     plt.show()
-    obs_col = path_planner.obstacle_check(grid[0])
 
