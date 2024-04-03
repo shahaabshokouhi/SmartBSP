@@ -12,7 +12,7 @@ from differential_drive_robot import Robot
 
 # Generate a point cloud for obstacles
 grid_size = 5
-np.random.seed(11)
+np.random.seed(12)
 centers = np.random.uniform(-100, 100, (400, 2))
 size = 2  # Use the same size for all squares or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 25  # Number of points per edge
@@ -41,7 +41,7 @@ num_slices_angular = 5
 rotation_angle = -theta2/2
 
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
-final_target = np.array([-100, 25], dtype=np.float32)
+final_target = np.array([0, -50], dtype=np.float32)
 
 
 # Simulate the robot's movement for a given number of steps.
@@ -64,6 +64,7 @@ actors[4].load_state_dict(torch.load('ppo_actor_t4.pth'))
 actors[5].load_state_dict(torch.load('ppo_actor_t5.pth'))
 
 for _ in range(steps):
+
 
     whichNetwork, _ = obstacle_to_grid.target_normalization(robot.state, final_target, grid_centers[4])
 
@@ -97,23 +98,26 @@ for _ in range(steps):
     print(obs_col)
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
+    fig, ax = plt.subplots()
+    ax = obstacle_to_grid.create_polar_grid(robot.state, ax)
     trajectory = robot.trackPID(n=70)
     # Plot everything
-    plt.figure(figsize=(8, 8))
-    plt.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
-    plt.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
-    plt.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
+
+
+    ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
+    ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
+    ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
 
     if inertial_points.size > 0:
-        plt.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
+        ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
     # plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
-    plt.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
+    ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
 
     # Draw the rectangle
     # plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
 
-    plt.legend()
-    plt.axis('equal')
+    ax.legend()
+    ax.axis('equal')
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')

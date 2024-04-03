@@ -201,6 +201,6 @@ for epoch in range(num_epochs):
             plt.show()
         if batch_idx % save_frequency == 0:
             # save the actor and critic network
-            torch.save(actor.state_dict(), 'ppo_actor_t5.pth')
-            torch.save(critic.state_dict(), 'ppo_critic_t5.pth')
+            torch.save(actor.state_dict(), 'ppo_actor.pth')
+            torch.save(critic.state_dict(), 'ppo_critic.pth')
 print('Done!')

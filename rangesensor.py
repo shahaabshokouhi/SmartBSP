@@ -136,8 +136,8 @@ class RangeSensorPolar:
         x, y, theta = robot_state
         for point in body_points_polar:
             r, theta = point[0], point[1]
-            theta = theta - self.rotation_angle
-            theta = np.radians(theta)
+            theta = theta - np.radians(self.rotation_angle)
+            # theta = np.radians(theta)
 
             cell_y_theta = self.grid_size - 1 - int(theta // cell_height_theta)
             cell_x_r = int((r - 0.5) // cell_width_r)
@@ -152,15 +152,17 @@ class RangeSensorPolar:
         theta_outer = np.linspace(np.radians(self.theta1), np.radians(self.theta2), 100)
         x_outer = self.radius * np.cos(theta_outer)
         y_outer = self.radius * np.sin(theta_outer)
+        rotation_angle_rad = np.radians(self.rotation_angle)
 
-        def rotate_points(x, y, angle_deg):
-            angle_rad = np.radians(angle_deg)
+        def rotate_points(x, y, angle_rad):
             x_rot = x * np.cos(angle_rad) - y * np.sin(angle_rad)
             y_rot = x * np.sin(angle_rad) + y * np.cos(angle_rad)
             return x_rot, y_rot
 
         # Rotate the outer arc
-        x_outer_rot, y_outer_rot = rotate_points(x_outer, y_outer, self.rotation_angle)
+        x_outer_rot, y_outer_rot = rotate_points(x_outer, y_outer, rotation_angle_rad + theta_robot)
+        x_outer_rot += x_robot
+        y_outer_rot += y_robot
 
         # Re-initialize plot for rotated slice
         # fig, ax = plt.subplots()
@@ -171,14 +173,18 @@ class RangeSensorPolar:
         # Rotate and plot the straight lines
         for theta in np.linspace(np.radians(self.theta1), np.radians(self.theta2), self.num_slices_angular + 1):
             x, y = self.radius * np.cos(theta), self.radius * np.sin(theta)
-            x_rot, y_rot = rotate_points(x, y, self.rotation_angle)
-            ax.plot([0, x_rot], [0, y_rot], 'blue')
+            x_rot, y_rot = rotate_points(x, y, rotation_angle_rad + theta_robot)
+            x_rot += x_robot
+            y_rot += y_robot
+            ax.plot([x_robot, x_rot], [y_robot, y_rot], 'blue')
 
         # Rotate and plot the concentric arcs
-        for r in np.linspace(0, radius, num_slices_radial + 1):
+        for r in np.linspace(0, self.radius, self.num_slices_radial + 1):
             x_concentric = r * np.cos(theta_outer)
             y_concentric = r * np.sin(theta_outer)
-            x_concentric_rot, y_concentric_rot = rotate_points(x_concentric, y_concentric, rotation_angle)
+            x_concentric_rot, y_concentric_rot = rotate_points(x_concentric, y_concentric, rotation_angle_rad + theta_robot)
+            x_concentric_rot += x_robot
+            y_concentric_rot += y_robot
             ax.plot(x_concentric_rot, y_concentric_rot, 'red')
         # grid_centers = self.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular,
         #                                       rotation_angle)
