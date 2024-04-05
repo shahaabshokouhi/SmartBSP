@@ -7,6 +7,8 @@ import torch
 import warnings
 from datasetgenerator_polar import GridDataset
 from torch.utils.data import DataLoader
+import winsound
+
 import torch.nn as nn
 from torch.optim import Adam
 import time
@@ -21,7 +23,7 @@ num_samples = 10000
 griddataset = GridDataset(n, num_samples, test=False)
 gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
 actor = ConvNet(grid_size=n)
-actor.load_state_dict(torch.load('ppo_actor_t5.pth'))
+actor.load_state_dict(torch.load('ppo_actor_t1.pth'))
 batch_rew_history = []
 obs_cols = []
 render = False
@@ -49,7 +51,7 @@ for idx, batch_grids in enumerate(gridloader):
         path = path_planner.construct_sp(p)
         obs_col = path_planner.obstacle_check_polar(batch_grids[j, 0])
         obs_cols.append(obs_col)
-        if render:
+        if obs_col and render:
             fig, ax = plt.subplots()
             grid_example_numpy = batch_grids[j].detach().numpy().reshape(n, n)
             obstacles, _ = path_planner.obstacle_from_grid_polar(grid_example_numpy)
@@ -69,3 +71,6 @@ num_success = np.where(obs_cols == False)[0]  # Add [0] to access the first (and
 success_rate = num_success.size / obs_cols.size
 
 print(f'The overall success rate is: {success_rate:.3f}')
+# frequency = 2500  # Set frequency (2500 Hz)
+# duration = 2000  # Set duration (1000 ms = 1 second)
+# winsound.Beep(frequency, duration)

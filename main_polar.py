@@ -9,9 +9,9 @@ from datasetgenerator_polar import GridDataset
 from torch.utils.data import DataLoader
 import torch.nn as nn
 from torch.optim import Adam
-import time
+import winsound
 warnings.filterwarnings('ignore')
-torch.manual_seed(13)
+torch.manual_seed(108)
 
 # Check if GPU is available and set the device accordingly
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -19,9 +19,9 @@ print(f"Using device: {device}")
 
 n = 5  # N by N view of the robot, must be odd
 path_planner = SmartPSB(num_y=n)
-target = np.array([10, -10])
+target = np.array([10, 10])
 possible_actions = np.arange(0, n)
-num_samples = 60000
+num_samples = 50000
 batch_size = 10
 griddataset = GridDataset(n, num_samples)
 gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
@@ -37,8 +37,8 @@ rotation_angle = -theta2/2
 
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
 #####
-# critic.load_state_dict(torch.load('ppo_critic.pth'))
-# actor.load_state_dict(torch.load('ppo_actor.pth'))
+# critic.load_state_dict(torch.load('ppo_critic_t1.pth'))
+# actor.load_state_dict(torch.load('ppo_actor_t1.pth'))
 ####
 
 learning_rate = 0.001
@@ -103,8 +103,8 @@ for epoch in range(num_epochs):
         batch_rew_mean = batch_rew.mean().item()
         batch_rew_history.append(batch_rew_mean)
         V = critic(batch_grids).squeeze()
-        # A_k = batch_rew - V.detach()
-        A_k = batch_rew - 1000
+        A_k = batch_rew - V.detach()
+        # A_k = batch_rew - 1000
         A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
         for _ in range(n_updates_per_iteration):
             V = critic(batch_grids).squeeze()
@@ -201,6 +201,9 @@ for epoch in range(num_epochs):
             plt.show()
         if batch_idx % save_frequency == 0:
             # save the actor and critic network
-            torch.save(actor.state_dict(), 'ppo_actor.pth')
-            torch.save(critic.state_dict(), 'ppo_critic.pth')
+            torch.save(actor.state_dict(), 'ppo_actor_t1.pth')
+            torch.save(critic.state_dict(), 'ppo_critic_t1.pth')
 print('Done!')
+frequency = 2500  # Set frequency (2500 Hz)
+duration = 2000  # Set duration (1000 ms = 1 second)
+winsound.Beep(frequency, duration)

@@ -12,10 +12,11 @@ from differential_drive_robot import Robot
 
 # Generate a point cloud for obstacles
 grid_size = 5
-np.random.seed(33)
+np.random.seed(27)
+# centers = np.array([[0, -25]])
 centers = np.random.uniform(-100, 100, (400, 2))
-size = 2  # Use the same size for all squares or use size = [5, 7] to specify different sizes for each square
-points_per_edge = 25  # Number of points per edge
+size = 4  # Use the same size for all squares or use size = [5, 7] to specify different sizes for each square
+points_per_edge = 20  # Number of points per edge
 env = Environment(centers, size, points_per_edge)
 point_cloud = env.generate_multiple_squares()
 
@@ -23,12 +24,15 @@ point_cloud = env.generate_multiple_squares()
 state = np.array([0, 0, np.pi / 2])
 
 # Parameter Initialization
-steps = 200
+steps = 1000
 left_wheel_velocity = 0.95
 right_wheel_velocity = 1
 dt = 10
 length = 5
 width = 5
+render = False
+first_render = True
+failure = False
 
 # Creating path planner object
 path_planner = SmartPSB(num_y=grid_size)
@@ -41,7 +45,7 @@ num_slices_angular = 5
 rotation_angle = -theta2/2
 
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
-final_target = np.array([0, -50], dtype=np.float32)
+final_target = np.array([100, 100], dtype=np.float32)
 
 
 # Simulate the robot's movement for a given number of steps.
@@ -77,7 +81,7 @@ for _ in range(steps):
     grid = obstacle_to_grid.create_grid(robot.state)
     grid = grid.view(1, grid_size, grid_size)
 
-    print("extracted grid: ", grid)
+    # print("extracted grid: ", grid)
 
     if whichNetwork in actors:
         actor_network = actors[whichNetwork]
@@ -94,10 +98,10 @@ for _ in range(steps):
     actions = np.array(actions)
     p = path_planner.action2point_polar(grid_centers, actions)
     path = path_planner.construct_sp(p)
-    obs_col = path_planner.obstacle_check_polar(grid[0])
-
-    if obs_col:
-        print("Closest path is obstructed, changing the target temporarily")
+    obs_col_first = path_planner.obstacle_check_polar(grid[0])
+    obs_col = False
+    if obs_col_first:
+        print("The closest path is obstructed, changing the target temporarily")
         for idx in range(1, grid_size + 1):
             if idx == whichNetwork:
                 continue
@@ -115,33 +119,72 @@ for _ in range(steps):
             obs_col = path_planner.obstacle_check_polar(grid[0])
 
             if not obs_col:
-                continue
+                break
+    if obs_col:
+        failure = True
 
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
-    fig, ax = plt.subplots()
-    ax = obstacle_to_grid.create_polar_grid(robot.state, ax)
-    trajectory = robot.trackPID(n=70)
-    # Plot everything
+    initial_state = robot.state
+    trajectory = robot.trackPID(n=10)
+    if (obs_col_first and render) or first_render:
+
+        fig, ax = plt.subplots()
+        ax = obstacle_to_grid.create_polar_grid(initial_state, ax)
+        # Plot everything
 
 
-    ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
-    ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
-    ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
+        ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
+        ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
+        ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
 
-    if inertial_points.size > 0:
-        ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
-    # plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
-    ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
+        if inertial_points.size > 0:
+            ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
+        # plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
+        ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
 
-    # Draw the rectangle
-    # plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
+        # Draw the rectangle
+        # plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
 
-    ax.legend()
-    ax.axis('equal')
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
-    plt.grid()
-    plt.show()
+        ax.legend()
+        ax.axis('equal')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
+        plt.grid()
+        plt.show()
+        first_render = False
+    distance_check = path_planner.distance(robot.state[0:2], final_target)
+    if distance_check < 3:
+        print('Arrived at the target')
+        break
 
+fig, ax = plt.subplots()
+ax = obstacle_to_grid.create_polar_grid(initial_state, ax)
+# Plot everything
+
+
+ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
+ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
+ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
+
+if inertial_points.size > 0:
+    ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
+# plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
+ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
+
+# Draw the rectangle
+# plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
+
+ax.legend()
+ax.axis('equal')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
+plt.grid()
+plt.show()
+
+if failure:
+    print("Path Planner failure reported at some point")
+
+print("Done!")
