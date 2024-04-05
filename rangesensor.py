@@ -5,91 +5,6 @@ from network import ConvNet
 from bspfunctions import SmartPSB
 from utils import *
 from parameters import *
-class RangeSensor:
-    def __init__(self, point_cloud, grid_size=(5, 5), area_size=(5, 5)):
-        self.point_cloud = point_cloud
-        self.grid_size = grid_size
-        self.area_size = area_size
-        self.width = area_size[1]
-        self.length = area_size[0]
-
-    def filter_front_points(self, robot_state):
-        x, y, theta = robot_state
-        inertial_points = []
-        body_points = []
-
-        for point in self.point_cloud:
-            px, py = point[0] - x, point[1] - y
-            px_rot, py_rot = np.cos(-theta) * px - np.sin(-theta) * py, np.sin(-theta) * px + np.cos(-theta) * py
-            if 0.5 <= px_rot <= (self.area_size[0] + 0.49) and (-self.area_size[1] / 2 + 0.01) < py_rot <= self.area_size[1] / 2:
-                inertial_points.append(point)
-                body_points.append([px_rot, py_rot])
-
-        return np.array(inertial_points), np.array(body_points)
-
-    def create_grid(self, robot_state):
-        grid = np.ones(self.grid_size)
-        _, body_points = self.filter_front_points(robot_state)
-        cell_length = self.area_size[0] / self.grid_size[0]
-        cell_width = self.area_size[1] / self.grid_size[1]
-        x, y, theta = robot_state
-        for point in body_points:
-            px_rot, py_rot = point[0], point[1]
-            cell_x = int((px_rot - 0.5) // cell_width)
-            cell_y = int((self.area_size[0] / 2 - py_rot) // cell_length)
-            grid[cell_y, cell_x] = 0
-        return torch.tensor(grid, dtype=torch.float32)
-
-    def get_rectangle_corners(self, robot_state):
-        """
-        Get the corners of the rectangle in front of the robot in the global frame.
-        """
-        x, y, theta = robot_state
-        # Corners in robot coordinate frame
-        corners_local = np.array([
-            [0.5, -self.width / 2],  # Bottom left
-            [self.length + 0.5, -self.width / 2],  # Bottom right
-            [self.length + 0.5, self.width / 2],  # Top right
-            [0.5, self.width / 2]  # Top left
-        ])
-
-        # Rotate and translate corners to global frame
-        corners_global = []
-        for corner in corners_local:
-            px_rot, py_rot = (
-                np.cos(theta) * corner[0] - np.sin(theta) * corner[1] + x,
-                np.sin(theta) * corner[0] + np.cos(theta) * corner[1] + y
-            )
-            corners_global.append([px_rot, py_rot])
-
-        return np.array(corners_global)
-    def distance(self, point1, point2):
-        """Calculate the Euclidean distance between two points."""
-        return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
-
-    def target_normalization(self, state, target):
-        x, y, theta = state
-        min_distance = float('inf')
-        y_points = np.arange(-np.floor(self.grid_size[0] / 2), np.floor(self.grid_size[0] / 2) + 1)[::-1]
-        x_points = self.grid_size[0] * np.ones_like(y_points)
-        points = np.column_stack((x_points, y_points))
-
-        # Rotate points
-        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
-                                    [np.sin(theta), np.cos(theta)]])
-        rotated_points = np.dot(points, rotation_matrix.T)  # Transpose to align dimensions
-        # Translate points
-        global_points = rotated_points + np.array([x, y])
-        for idx in range(global_points.shape[0]):
-            dist = self.distance(global_points[idx], target)
-            if dist < min_distance:
-                min_distance = dist
-                normalized_target = global_points[idx]
-                min_idx = idx + 1
-
-        return min_idx, normalized_target
-
-
 class RangeSensorPolar:
     def __init__(self, grid_size, point_cloud, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle):
         self.grid_size = grid_size
@@ -197,29 +112,6 @@ class RangeSensorPolar:
         # plt.show()
         return ax
 
-    def get_rectangle_corners(self, robot_state):
-        """
-        Get the corners of the rectangle in front of the robot in the global frame.
-        """
-        x, y, theta = robot_state
-        # Corners in robot coordinate frame
-        corners_local = np.array([
-            [0.5, -self.width / 2],  # Bottom left
-            [self.length + 0.5, -self.width / 2],  # Bottom right
-            [self.length + 0.5, self.width / 2],  # Top right
-            [0.5, self.width / 2]  # Top left
-        ])
-
-        # Rotate and translate corners to global frame
-        corners_global = []
-        for corner in corners_local:
-            px_rot, py_rot = (
-                np.cos(theta) * corner[0] - np.sin(theta) * corner[1] + x,
-                np.sin(theta) * corner[0] + np.cos(theta) * corner[1] + y
-            )
-            corners_global.append([px_rot, py_rot])
-
-        return np.array(corners_global)
     def distance(self, point1, point2):
         """Calculate the Euclidean distance between two points."""
         return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)

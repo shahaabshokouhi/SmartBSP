@@ -6,17 +6,16 @@ from bspfunctions import SmartPSB
 from utils import *
 from parameters import *
 from environment import Environment
-from rangesensor import RangeSensor, RangeSensorPolar
+from rangesensor import RangeSensorPolar
 from differential_drive_robot import Robot
 
 
 # Generate a point cloud for obstacles
-grid_size = 5
-np.random.seed(27)
+np.random.seed(1)
 # centers = np.array([[0, -25]])
-centers = np.random.uniform(-100, 100, (400, 2))
-size = 4  # Use the same size for all squares or use size = [5, 7] to specify different sizes for each square
-points_per_edge = 20  # Number of points per edge
+centers = np.random.uniform(0, 20, (5, 2))
+size = 4  # use the same size for all squares or use size = [5, 7] to specify different sizes for each square
+points_per_edge = 50  # Number of points per edge
 env = Environment(centers, size, points_per_edge)
 point_cloud = env.generate_multiple_squares()
 
@@ -33,9 +32,11 @@ width = 5
 render = False
 first_render = True
 failure = False
+grid_size = 5
 
 # Creating path planner object
 path_planner = SmartPSB(num_y=grid_size)
+path_percentage = 10  # percentage of each path to be travelled.
 
 # Define parameters for the circle slice
 theta1, theta2 = 0, 100  # Degrees
@@ -43,14 +44,14 @@ radius = 3
 num_slices_radial = 6
 num_slices_angular = 5
 rotation_angle = -theta2/2
-
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
-final_target = np.array([100, 100], dtype=np.float32)
+final_target = np.array([20, 20], dtype=np.float32)
 
 
 # Simulate the robot's movement for a given number of steps.
 robot = Robot(state)
 obstacle_to_grid = RangeSensorPolar(grid_size, point_cloud, radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
+
 # Preload all networks
 actors = {
     1: ConvNet(grid_size=grid_size),
@@ -60,7 +61,6 @@ actors = {
     5: ConvNet(grid_size=grid_size),
 }
 
-# Load state dicts
 actors[1].load_state_dict(torch.load('ppo_actor_t1.pth'))
 actors[2].load_state_dict(torch.load('ppo_actor_t2.pth'))
 actors[3].load_state_dict(torch.load('ppo_actor_t3.pth'))
@@ -68,8 +68,7 @@ actors[4].load_state_dict(torch.load('ppo_actor_t4.pth'))
 actors[5].load_state_dict(torch.load('ppo_actor_t5.pth'))
 
 for _ in range(steps):
-
-
+    # Choosing which network gets you closer to the final target
     whichNetwork, _ = obstacle_to_grid.target_normalization(robot.state, final_target, grid_centers[4])
 
     # Filter points directly in front of the robot
@@ -80,7 +79,6 @@ for _ in range(steps):
     # Creating the grid, and the path
     grid = obstacle_to_grid.create_grid(robot.state)
     grid = grid.view(1, grid_size, grid_size)
-
     # print("extracted grid: ", grid)
 
     if whichNetwork in actors:
@@ -126,26 +124,18 @@ for _ in range(steps):
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
     initial_state = robot.state
-    trajectory = robot.trackPID(n=10)
+    trajectory = robot.trackPID(n=path_percentage)
     if (obs_col_first and render) or first_render:
 
+        # Plot everything
         fig, ax = plt.subplots()
         ax = obstacle_to_grid.create_polar_grid(initial_state, ax)
-        # Plot everything
-
-
         ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
         ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
         ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
-
         if inertial_points.size > 0:
             ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
-        # plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
         ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
-
-        # Draw the rectangle
-        # plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
-
         ax.legend()
         ax.axis('equal')
         plt.xlabel('X')
@@ -159,23 +149,15 @@ for _ in range(steps):
         print('Arrived at the target')
         break
 
+# Plot everything
 fig, ax = plt.subplots()
 ax = obstacle_to_grid.create_polar_grid(initial_state, ax)
-# Plot everything
-
-
 ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
 ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
 ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
-
 if inertial_points.size > 0:
     ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
-# plt.plot(trajectory[:, 0], trajectory[:, 1], 'b.-', label='Robot Path')
 ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
-
-# Draw the rectangle
-# plt.plot(*zip(*np.append(rectangle_corners, [rectangle_corners[0]], axis=0)), 'g--', label='Viewing Area')
-
 ax.legend()
 ax.axis('equal')
 plt.xlabel('X')
