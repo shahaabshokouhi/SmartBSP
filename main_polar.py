@@ -201,8 +201,8 @@ for epoch in range(num_epochs):
             plt.show()
         if batch_idx % save_frequency == 0:
             # save the actor and critic network
-            torch.save(actor.state_dict(), 'ppo_actor_t1.pth')
-            torch.save(critic.state_dict(), 'ppo_critic_t1.pth')
+            torch.save(actor.state_dict(), 'ppo_actor.pth')
+            torch.save(critic.state_dict(), 'ppo_critic.pth')
 print('Done!')
 frequency = 2500  # Set frequency (2500 Hz)
 duration = 2000  # Set duration (1000 ms = 1 second)
