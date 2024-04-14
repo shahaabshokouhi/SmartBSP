@@ -26,7 +26,7 @@ actor = ConvNet(grid_size=n)
 actor.load_state_dict(torch.load('ppo_actor_t1.pth'))
 batch_rew_history = []
 obs_cols = []
-render = False
+render = True
 
 # Define parameters for the circle slice
 theta1, theta2 = 0, 100  # Degrees
@@ -51,7 +51,7 @@ for idx, batch_grids in enumerate(gridloader):
         path = path_planner.construct_sp(p)
         obs_col = path_planner.obstacle_check_polar(batch_grids[j, 0])
         obs_cols.append(obs_col)
-        if obs_col and render:
+        if render:
             fig, ax = plt.subplots()
             grid_example_numpy = batch_grids[j].detach().numpy().reshape(n, n)
             obstacles, _ = path_planner.obstacle_from_grid_polar(grid_example_numpy)
@@ -64,6 +64,10 @@ for idx, batch_grids in enumerate(gridloader):
             # plt.imshow(np.concatenate((np.zeros((n, 1)), dist_map_numpy_grid), axis=1), cmap='gray', extent=[-0.5, n + 0.5, -n/2, n/2])
             ax.plot(path[:, 0], path[:, 1], 'r-', label='Spline Path')  # Adjust path plotting as needed
             ax.plot(p[:, 0], p[:, 1], 'o-', label='Control Points')  # Plot control points
+            ax.set_xlabel('X (m)')
+            ax.set_ylabel('Y (m)')
+            ax.legend()
+            plt.grid()
             plt.tight_layout()
             plt.show()
 obs_cols = np.array(obs_cols)

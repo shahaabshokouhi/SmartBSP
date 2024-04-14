@@ -312,7 +312,7 @@ class SmartPSB():
         # fig, ax = plt.subplots()
 
         # Plot the rotated outer arc
-        ax.plot(x_outer_rot, y_outer_rot, 'k')
+        ax.plot(x_outer_rot, y_outer_rot, 'blue')
 
         # Rotate and plot the straight lines
         for theta in np.linspace(np.radians(theta1), np.radians(theta2), num_slices_angular + 1):
@@ -325,7 +325,7 @@ class SmartPSB():
             x_concentric = r * np.cos(theta_outer)
             y_concentric = r * np.sin(theta_outer)
             x_concentric_rot, y_concentric_rot = rotate_points(x_concentric, y_concentric, rotation_angle)
-            ax.plot(x_concentric_rot, y_concentric_rot, 'red')
+            ax.plot(x_concentric_rot, y_concentric_rot, 'blue')
         # grid_centers = self.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular,
         #                                       rotation_angle)
         # print(grid_centers)
