@@ -7,8 +7,8 @@ from utils import *
 from parameters import *
 class Robot:
     def __init__(self, initial_state, robot_path=None, wheel_radius=0.05, wheel_base=0.15,
-                 kp_linear=0.3, kd_linear=0.2, ki_linear=0.1,
-                 kp_angular=0.3, kd_angular=0.2, ki_angular=0.1):
+                 kp_linear=0.3, kd_linear=0, ki_linear=0.1,
+                 kp_angular=0.3, kd_angular=0, ki_angular=0.1):
         self.state = np.array(initial_state)
         self.wheel_radius = wheel_radius
         self.wheel_base = wheel_base
@@ -72,6 +72,7 @@ class Robot:
     def trackPID(self, n = 10):
         trajectory = [self.state]
         reference_index = 0
+
         while reference_index < n:
             reference_index = self.get_reference_index()
             if reference_index == 32:
@@ -97,6 +98,40 @@ class Robot:
             self.prev_error_position = error_position
 
             self.prev_waypoint_idx = reference_index
+            self.prev_body_to_goal = body_to_goal
+
+            if linear_velocity_control > MAX_LINEAR_VELOCITY:
+                linear_velocity_control = MAX_LINEAR_VELOCITY
+
+            right_wheel_velocity, left_wheel_velocity = self.uniToDiff(linear_velocity_control, angular_velocity_control)
+            state = self.update_state(left_wheel_velocity, right_wheel_velocity, self.dt)
+            trajectory.append(self.state)
+        self.trajectory = np.vstack((self.trajectory, trajectory))
+        return  np.array(trajectory)
+
+    def trackPID_noObs(self, target, n=10):
+        trajectory = [self.state]
+        for i in range(n):
+
+            # target = self.path[reference_index, :]
+            error_position = get_distance(self.state[0], self.state[1], target[0], target[1])
+
+            body_to_goal = get_angle(self.state[0], self.state[1], target[0], target[1])
+            # body_to_nose = get_angle(x[0, 0], x[1, 0], nose[0], nose[1])
+
+            # if self.prev_waypoint_idx == waypoint_idx and 350<(abs(self.prev_body_to_goal - body_to_goal)*180/np.pi):
+            # 	print("HERE")
+            # 	body_to_goal = self.prev_body_to_goal
+            # error_angle = body_to_goal - self.state[2]
+            error_angle = get_angle_difference(body_to_goal, self.state[2])
+
+            linear_velocity_control = self.kp_linear * error_position + self.kd_linear * (
+                        error_position - self.prev_error_position)
+            angular_velocity_control = self.kp_angular * error_angle + self.kd_angular * (
+                        error_angle - self.prev_error_angle)
+
+            self.prev_error_angle = error_angle
+            self.prev_error_position = error_position
             self.prev_body_to_goal = body_to_goal
 
             if linear_velocity_control > MAX_LINEAR_VELOCITY:

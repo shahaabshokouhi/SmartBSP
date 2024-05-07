@@ -116,6 +116,18 @@ class SmartPSB():
         Returns:
         - Total curvature cost of the path.
         """
+
+        # x, y = p_spl[:, 0], p_spl[:, 1]
+        # dx_dt = np.gradient(x)
+        # dy_dt = np.gradient(y)
+        # d2x_dt2 = np.gradient(dx_dt)
+        # d2y_dt2 = np.gradient(dy_dt)
+        #
+        # numerator = np.abs(dx_dt * d2y_dt2 - dy_dt * d2x_dt2)
+        # denominator = (dx_dt ** 2 + dy_dt ** 2) ** (3 / 2)
+        #
+        # curvature_values = numerator / denominator
+        # curve = np.sum(curvature_values)
         # Transpose p_spl to match MATLAB's use of column vectors
         p_spl = p_spl.T
         curve = 0

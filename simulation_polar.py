@@ -10,9 +10,9 @@ from rangesensor import RangeSensorPolar
 from differential_drive_robot import Robot
 
 
-# Generate a point cloud for obstacles
-np.random.seed(4)
-# centers = np.array([[0, -25]])
+# Generate a point cloud for obstacles (Fig 6 of the paper uses seed = 4)
+np.random.seed(6)
+# centers = np.array([[10, 0]])
 centers = np.random.uniform(0, 100, (100, 2))
 size = 4  # use the same size for all squares or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 50  # Number of points per edge
@@ -20,7 +20,7 @@ env = Environment(centers, size, points_per_edge)
 point_cloud = env.generate_multiple_squares()
 
 # Initial robot state [x, y, theta]
-state = np.array([0, 0, np.pi / 2])
+state = np.array([0, 0, 0])
 
 # Parameter Initialization
 steps = 1000
@@ -75,7 +75,6 @@ for _ in range(steps):
     inertial_points, body_points, body_points_polar = obstacle_to_grid.filter_front_points(robot.state)
     # print("Inertial points: ", inertial_points)
     # print("Body points: ", body_points)
-
     # Creating the grid, and the path
     grid = obstacle_to_grid.create_grid(robot.state)
     grid = grid.view(1, grid_size, grid_size)
@@ -124,8 +123,11 @@ for _ in range(steps):
     path_global = robot.transform_path_to_global(path)
     robot.getPath(path_global)
     initial_state = robot.state
-    trajectory = robot.trackPID(n=path_percentage)
-    if (obs_col_first and render) or first_render:
+    if body_points.size == 0:
+        trajectory = robot.trackPID_noObs(target=final_target, n=1)
+    else:
+        trajectory = robot.trackPID(n=path_percentage)
+    if (render) or first_render:
 
         # Plot everything
         fig, ax = plt.subplots()
@@ -153,16 +155,16 @@ for _ in range(steps):
 fig, ax = plt.subplots()
 ax = obstacle_to_grid.create_polar_grid(initial_state, ax)
 ax.scatter(point_cloud[:, 0], point_cloud[:, 1], c='red', label='Obstacles')
-ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
+# ax.plot(path_global[:, 0], path_global[:, 1], c='red', label='Local path')
 ax.scatter(final_target[0], final_target[1],s=100, c='green', label='Target')
 if inertial_points.size > 0:
     ax.scatter(inertial_points[:, 0], inertial_points[:, 1], c='yellow', label='Front Points')
 ax.plot(robot.trajectory[:, 0], robot.trajectory[:, 1], 'b.-', label='Robot Path')
 ax.legend()
-ax.axis('equal')
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
+# ax.axis('equal')
+plt.xlabel('X (m)')
+plt.ylabel('Y (m)')
+# plt.title('Differential Wheel Drive Robot Simulation in Point Cloud')
 plt.grid()
 plt.show()
 

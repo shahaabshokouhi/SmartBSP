@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.optim import Adam
 import winsound
 warnings.filterwarnings('ignore')
-torch.manual_seed(108)
+torch.manual_seed(7)
 
 # Check if GPU is available and set the device accordingly
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,7 +21,7 @@ n = 5  # N by N view of the robot, must be odd
 path_planner = SmartPSB(num_y=n)
 target = np.array([10, 10])
 possible_actions = np.arange(0, n)
-num_samples = 50000
+num_samples = 20000
 batch_size = 10
 griddataset = GridDataset(n, num_samples)
 gridloader = DataLoader(griddataset, batch_size=batch_size, shuffle=True)
@@ -37,8 +37,8 @@ rotation_angle = -theta2/2
 
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
 #####
-# critic.load_state_dict(torch.load('ppo_critic_t1.pth'))
-# actor.load_state_dict(torch.load('ppo_actor_t1.pth'))
+# critic.load_state_dict(torch.load('ppo_critic.pth'))
+# actor.load_state_dict(torch.load('ppo_actor.pth'))
 ####
 
 learning_rate = 0.001

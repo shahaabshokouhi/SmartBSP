@@ -55,7 +55,11 @@ class RangeSensorPolar:
             # theta = np.radians(theta)
 
             cell_y_theta = self.grid_size - 1 - int(theta // cell_height_theta)
+            if cell_y_theta == 5:
+                cell_y_theta = 4
             cell_x_r = int((r - 0.5) // cell_width_r)
+            if cell_x_r == 5:
+                cell_x_r = 4
             grid[cell_y_theta, cell_x_r] = 0
         return torch.tensor(grid, dtype=torch.float32)
 

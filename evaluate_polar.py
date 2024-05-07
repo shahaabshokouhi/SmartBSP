@@ -23,10 +23,10 @@ num_samples = 10000
 griddataset = GridDataset(n, num_samples, test=False)
 gridloader = DataLoader(griddataset, batch_size=8, shuffle=True)
 actor = ConvNet(grid_size=n)
-actor.load_state_dict(torch.load('ppo_actor_t1.pth'))
+actor.load_state_dict(torch.load('ppo_actor_t5.pth'))
 batch_rew_history = []
 obs_cols = []
-render = True
+render = False
 
 # Define parameters for the circle slice
 theta1, theta2 = 0, 100  # Degrees
