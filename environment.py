@@ -15,7 +15,7 @@ class Environment:
     def generate_square_obstacle(self, center, size, points_per_edge):
         cx, cy = center
         half_size_x = 2
-        half_size_y = 2
+        half_size_y = 10
         # Corners of the square
         corners = np.array([
             [cx - half_size_x, cy - half_size_y],  # Bottom left

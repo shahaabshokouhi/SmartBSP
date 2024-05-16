@@ -12,8 +12,8 @@ from differential_drive_robot import Robot
 
 # Generate a point cloud for obstacles (Fig 6 of the paper uses seed = 4)
 np.random.seed(6)
-# centers = np.array([[10, 0]])
-centers = np.random.uniform(0, 100, (100, 2))
+centers = np.array([[10, 0]])
+# centers = np.random.uniform(0, 100, (100, 2))
 size = 4  # use the same size for all squares or use size = [5, 7] to specify different sizes for each square
 points_per_edge = 50  # Number of points per edge
 env = Environment(centers, size, points_per_edge)
@@ -45,7 +45,7 @@ num_slices_radial = 6
 num_slices_angular = 5
 rotation_angle = -theta2/2
 grid_centers, grid_centers_polar = path_planner.calculate_grid_centers(radius, theta1, theta2, num_slices_radial, num_slices_angular, rotation_angle)
-final_target = np.array([100, 100], dtype=np.float32)
+final_target = np.array([20, 0], dtype=np.float32)
 
 
 # Simulate the robot's movement for a given number of steps.
